@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import AjouterDetailFiche from './AjouterDetailFiche.JSX';
+import AjouterDetailFiche from './AjouterDetailFiche.jsx';
 import { toast } from 'react-toastify';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
