@@ -12,7 +12,10 @@ function Login() {
     e.preventDefault();
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOtp({ email });
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
       if (error) throw error;
       toast.success('Vérifiez votre email pour le lien de connexion !');
     } catch (error) {

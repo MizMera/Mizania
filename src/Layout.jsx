@@ -31,7 +31,11 @@ import {
   Logout,
   Menu as MenuIcon,
   Search,
-  NotificationsNone
+  NotificationsNone,
+  AccountBalanceWallet,
+  ReceiptLong,
+  SwapHoriz,
+  AdminPanelSettings,
 } from '@mui/icons-material';
 import GroupIcon from '@mui/icons-material/Group';
 
@@ -39,16 +43,17 @@ import GroupIcon from '@mui/icons-material/Group';
 const drawerWidth = 260; // expanded width
 const collapsedWidth = 72; // icon-only width
 
+// Revert to simple per-item icons (no gradients) and avoid repeated icons
 const menuItems = [
   { text: 'Tableau de Bord', path: '/dashboard', icon: <DashboardIcon /> },
   { text: 'Inventaire', path: '/', icon: <InventoryIcon /> },
   { text: 'Point de Vente', path: '/pdv', icon: <POSIcon /> },
   { text: 'Réparations', path: '/reparations', icon: <RepairIcon /> },
-  { text: 'Gestion Encaisse', path: '/gestion-encaisse', icon: <POSIcon /> },
-  { text: 'Dépenses', path: '/depenses', icon: <RepairIcon /> },
-  { text: 'Transferts', path: '/transferts', icon: <POSIcon /> },
+  { text: 'Gestion Encaisse', path: '/gestion-encaisse', icon: <AccountBalanceWallet /> },
+  { text: 'Dépenses', path: '/depenses', icon: <ReceiptLong /> },
+  { text: 'Transferts', path: '/transferts', icon: <SwapHoriz /> },
   { text: 'Clients', path: '/clients', icon: <GroupIcon /> },
-  { text: 'Administration', path: '/admin', icon: <AccountCircle /> }
+  { text: 'Administration', path: '/admin', icon: <AdminPanelSettings /> },
 ];
 
 function Layout() {
@@ -107,8 +112,8 @@ function Layout() {
                   backgroundColor: 'rgba(99,102,241,0.15)',
                   borderRight: '3px solid #6366F1',
                   '& .MuiListItemIcon-root': { color: '#A5B4FC' },
-                  '& .MuiListItemText-primary': { color: '#E5E7EB', fontWeight: 'bold' }
-                }
+                  '& .MuiListItemText-primary': { color: '#E5E7EB', fontWeight: 'bold' },
+                },
               }}
             >
               <ListItemIcon sx={{ color: 'inherit' }}>{item.icon}</ListItemIcon>
