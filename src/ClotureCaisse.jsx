@@ -1,7 +1,7 @@
 // src/ClotureCaisse.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { Box, Paper, Typography, Stack, TextField, Button, Table, TableHead, TableRow, TableCell, TableBody, Card, Grid } from '@mui/material';
+import { Box, Paper, Typography, Stack, TextField, Button, Table, TableHead, TableRow, TableCell, TableBody, Card, Grid, TableContainer } from '@mui/material';
 import { PictureAsPdf } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -261,72 +261,74 @@ function ClotureCaisse() {
           mx: { xs: -2, sm: -3 }
         }}>
           <Typography variant="h6" sx={{ px: { xs: 2, sm: 3 }, pt: 2, pb: 1 }}>Transactions du jour</Typography>
-          <Box sx={{ px: { xs: 2, sm: 3 }, pb: 2, overflowX: 'hidden' }}>
-            <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', width: '6%' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', width: '12%' }}>Date/Heure</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', width: '14%' }}>Ticket</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', width: '22%' }}>Articles</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', width: '26%' }}>Description</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', width: '8%' }}>Montant (DT)</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', width: '6%' }}>Coût (DT)</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', width: '6%' }}>Marge (DT)</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading && (
+          <Box sx={{ px: { xs: 2, sm: 3 }, pb: 2, overflowX: 'auto' }}>
+            <TableContainer sx={{ maxHeight: { xs: 360, md: 540 } }}>
+              <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', minWidth: 920 }}>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      Chargement...
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '6%' }}>ID</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '12%' }}>Date/Heure</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '14%' }}>Ticket</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '22%' }}>Articles</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', width: '26%' }}>Description</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', width: '8%' }}>Montant (DT)</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', width: '6%' }}>Coût (DT)</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', width: '6%' }}>Marge (DT)</TableCell>
                   </TableRow>
-                )}
-                {!loading && rows.map(r => {
-                  const montant = Number(r.montant || 0);
-                  const cout = Number(r.cout_total || 0);
-                  const marge = montant - cout;
-                  const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
-                  const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
-                  const items = itemsMatch ? itemsMatch[1] : '—';
-                  return (
-                    <TableRow key={r.id} hover>
-                      <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{r.id}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>{fmtDateTime(r.created_at)}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ticket}</TableCell>
-                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{items}</TableCell>
-                      <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.description || '—'}
-                      </TableCell>
-                      <TableCell align="right">{montant.toFixed(2)}</TableCell>
-                      <TableCell align="right">{cout.toFixed(2)}</TableCell>
-                      <TableCell align="right" sx={{ 
-                        color: marge > 0 ? '#22C55E' : (marge < 0 ? '#EF4444' : 'inherit'),
-                        fontWeight: 'bold'
-                      }}>
-                        {marge.toFixed(2)}
+                </TableHead>
+                <TableBody>
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        Chargement...
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-                {!loading && rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                      Aucune vente
-                    </TableCell>
-                  </TableRow>
-                )}
-                {rows.length > 0 && (
-                  <TableRow sx={{ bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
-                    <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>Totaux</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.total.toFixed(2)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.couts.toFixed(2)}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.netVentes.toFixed(2)}</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                  {!loading && rows.map(r => {
+                    const montant = Number(r.montant || 0);
+                    const cout = Number(r.cout_total || 0);
+                    const marge = montant - cout;
+                    const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
+                    const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
+                    const items = itemsMatch ? itemsMatch[1] : '—';
+                    return (
+                      <TableRow key={r.id} hover>
+                        <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{r.id}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' }}>{fmtDateTime(r.created_at)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ticket}</TableCell>
+                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{items}</TableCell>
+                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.description || '—'}
+                        </TableCell>
+                        <TableCell align="right">{montant.toFixed(2)}</TableCell>
+                        <TableCell align="right">{cout.toFixed(2)}</TableCell>
+                        <TableCell align="right" sx={{ 
+                          color: marge > 0 ? '#22C55E' : (marge < 0 ? '#EF4444' : 'inherit'),
+                          fontWeight: 'bold'
+                        }}>
+                          {marge.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!loading && rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        Aucune vente
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rows.length > 0 && (
+                    <TableRow sx={{ bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
+                      <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>Totaux</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.total.toFixed(2)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.couts.toFixed(2)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.netVentes.toFixed(2)}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         </Paper>
 

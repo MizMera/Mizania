@@ -4,7 +4,8 @@ import { supabase } from './supabaseClient';
 import { 
   Box, Paper, Typography, Stack, TextField, Button, Table, TableHead, TableRow, TableCell, TableBody, 
   Chip, Card, Grid, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
-  FormControl, InputLabel, Select, MenuItem, Alert
+  FormControl, InputLabel, Select, MenuItem, Alert,
+  TableContainer
 } from '@mui/material';
 import { 
   PictureAsPdf, Edit, Delete, Save, Cancel, Refresh, TrendingUp, AccountBalance, 
@@ -557,8 +558,9 @@ function GestionEncaisse() {
           </Typography>
         </Box>
         
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
+        {/* Use TableContainer for mobile scroll */}
+        <TableContainer sx={{ maxHeight: { xs: 360, md: 540 }, overflowX: 'auto' }}>
+          <Table size="small" stickyHeader sx={{ minWidth: viewMode === 'daily' ? 1000 : 900 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 'bold', width: '6%' }}>ID</TableCell>
@@ -738,7 +740,7 @@ function GestionEncaisse() {
               )}
             </TableBody>
           </Table>
-        </Box>
+        </TableContainer>
       </Paper>
 
       {/* Delete Confirmation Dialog */}

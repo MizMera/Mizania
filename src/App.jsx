@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import AjouterProduitForm from './AjouterProduitForm';
 import './App.css';
-import { Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody, TextField, IconButton, Button } from '@mui/material';
+import { Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody, TextField, IconButton, Button, TableContainer } from '@mui/material';
 import { Delete, Edit, Save, Cancel, PictureAsPdf } from '@mui/icons-material';
 import Grid from '@mui/material/Grid';
 import jsPDF from 'jspdf';
@@ -299,7 +299,6 @@ function App() {
                 Inventaire ({filteredInventaire.length} produits)
               </Typography>
             </Box>
-            
             {chargement ? (
               <Box sx={{ 
                 flex: 1, 
@@ -311,169 +310,172 @@ function App() {
               </Box>
             ) : (
               <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Nom</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>SKU</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Stock</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Prix d'achat (€)</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Prix de Vente (€)</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Marge (€)</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Type</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredInventaire.map((produit) => {
-                      const pa = Number(produit.prix_achat || 0);
-                      const pv = Number(produit.prix_vente || 0);
-                      const marge = pv - pa;
-                      const isEditing = editingId === produit.id;
-                      
-                      return (
-                        <TableRow key={produit.id} hover>
-                          <TableCell>
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                value={editValues.nom || ''}
-                                onChange={(e) => setEditValues({...editValues, nom: e.target.value})}
-                                sx={{ minWidth: 120 }}
-                              />
-                            ) : (
-                              produit.nom
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                value={editValues.sku || ''}
-                                onChange={(e) => setEditValues({...editValues, sku: e.target.value})}
-                                sx={{ minWidth: 100 }}
-                              />
-                            ) : (
-                              produit.sku || '—'
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={editValues.quantite_stock || ''}
-                                onChange={(e) => setEditValues({...editValues, quantite_stock: e.target.value})}
-                                sx={{ minWidth: 80 }}
-                              />
-                            ) : (
-                              <Box sx={{ 
-                                color: produit.quantite_stock < 5 ? '#EF4444' : 'inherit',
-                                fontWeight: produit.quantite_stock < 5 ? 'bold' : 'normal'
-                              }}>
-                                {produit.quantite_stock}
-                              </Box>
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={editValues.prix_achat || ''}
-                                onChange={(e) => setEditValues({...editValues, prix_achat: e.target.value})}
-                                sx={{ minWidth: 100 }}
-                              />
-                            ) : (
-                              `${pa.toFixed(2)} €`
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={editValues.prix_vente || ''}
-                                onChange={(e) => setEditValues({...editValues, prix_vente: e.target.value})}
-                                sx={{ minWidth: 100 }}
-                              />
-                            ) : (
-                              `${pv.toFixed(2)} €`
-                            )}
-                          </TableCell>
-                          <TableCell align="right" sx={{ 
-                            color: marge > 0 ? '#22C55E' : '#EF4444',
-                            fontWeight: 'bold'
-                          }}>
-                            {marge.toFixed(2)} €
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <TextField
-                                size="small"
-                                select
-                                SelectProps={{ native: true }}
-                                value={editValues.type_article || ''}
-                                onChange={(e) => setEditValues({...editValues, type_article: e.target.value})}
-                                sx={{ minWidth: 140 }}
-                              >
-                                <option value="Produit de Vente">Produit de Vente</option>
-                                <option value="Service">Service</option>
-                                <option value="Pièce Détachée">Pièce Détachée</option>
-                              </TextField>
-                            ) : (
-                              produit.type_article
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {isEditing ? (
-                              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <IconButton 
-                                  size="small" 
-                                  color="primary"
-                                  onClick={() => handleSave(produit.id)}
+                <TableContainer sx={{ maxHeight: { xs: 360, md: 540 } }}>
+                  <Table size="small" stickyHeader sx={{ minWidth: 900 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Nom</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>SKU</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Stock</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Prix d'achat (€)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Prix de Vente (€)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Marge (€)</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredInventaire.map((produit) => {
+                        const pa = Number(produit.prix_achat || 0);
+                        const pv = Number(produit.prix_vente || 0);
+                        const marge = pv - pa;
+                        const isEditing = editingId === produit.id;
+                        
+                        return (
+                          <TableRow key={produit.id} hover>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  value={editValues.nom || ''}
+                                  onChange={(e) => setEditValues({...editValues, nom: e.target.value})}
+                                  sx={{ minWidth: 120 }}
+                                />
+                              ) : (
+                                produit.nom
+                              )}
+                            </TableCell>
+                            <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  value={editValues.sku || ''}
+                                  onChange={(e) => setEditValues({...editValues, sku: e.target.value})}
+                                  sx={{ minWidth: 100 }}
+                                />
+                              ) : (
+                                produit.sku || '—'
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={editValues.quantite_stock || ''}
+                                  onChange={(e) => setEditValues({...editValues, quantite_stock: e.target.value})}
+                                  sx={{ minWidth: 80 }}
+                                />
+                              ) : (
+                                <Box sx={{ 
+                                  color: produit.quantite_stock < 5 ? '#EF4444' : 'inherit',
+                                  fontWeight: produit.quantite_stock < 5 ? 'bold' : 'normal'
+                                }}>
+                                  {produit.quantite_stock}
+                                </Box>
+                              )}
+                            </TableCell>
+                            <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={editValues.prix_achat || ''}
+                                  onChange={(e) => setEditValues({...editValues, prix_achat: e.target.value})}
+                                  sx={{ minWidth: 100 }}
+                                />
+                              ) : (
+                                `${pa.toFixed(2)} €`
+                              )}
+                            </TableCell>
+                            <TableCell align="right">
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  type="number"
+                                  value={editValues.prix_vente || ''}
+                                  onChange={(e) => setEditValues({...editValues, prix_vente: e.target.value})}
+                                  sx={{ minWidth: 100 }}
+                                />
+                              ) : (
+                                `${pv.toFixed(2)} €`
+                              )}
+                            </TableCell>
+                            <TableCell align="right" sx={{ 
+                              display: { xs: 'none', sm: 'table-cell' },
+                              color: marge > 0 ? '#22C55E' : '#EF4444',
+                              fontWeight: 'bold'
+                            }}>
+                              {marge.toFixed(2)} €
+                            </TableCell>
+                            <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                              {isEditing ? (
+                                <TextField
+                                  size="small"
+                                  select
+                                  SelectProps={{ native: true }}
+                                  value={editValues.type_article || ''}
+                                  onChange={(e) => setEditValues({...editValues, type_article: e.target.value})}
+                                  sx={{ minWidth: 140 }}
                                 >
-                                  <Save />
-                                </IconButton>
-                                <IconButton 
-                                  size="small" 
-                                  color="secondary"
-                                  onClick={handleCancel}
-                                >
-                                  <Cancel />
-                                </IconButton>
-                              </Box>
-                            ) : (
-                              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <IconButton 
-                                  size="small" 
-                                  color="primary"
-                                  onClick={() => handleEdit(produit)}
-                                >
-                                  <Edit />
-                                </IconButton>
-                                <IconButton 
-                                  size="small" 
-                                  color="error"
-                                  onClick={() => handleDelete(produit.id)}
-                                >
-                                  <Delete />
-                                </IconButton>
-                              </Box>
-                            )}
+                                  <option value="Produit de Vente">Produit de Vente</option>
+                                  <option value="Service">Service</option>
+                                  <option value="Pièce Détachée">Pièce Détachée</option>
+                                </TextField>
+                              ) : (
+                                produit.type_article
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <IconButton 
+                                    size="small" 
+                                    color="primary"
+                                    onClick={() => handleSave(produit.id)}
+                                  >
+                                    <Save />
+                                  </IconButton>
+                                  <IconButton 
+                                    size="small" 
+                                    color="secondary"
+                                    onClick={handleCancel}
+                                  >
+                                    <Cancel />
+                                  </IconButton>
+                                </Box>
+                              ) : (
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <IconButton 
+                                    size="small" 
+                                    color="primary"
+                                    onClick={() => handleEdit(produit)}
+                                  >
+                                    <Edit />
+                                  </IconButton>
+                                  <IconButton 
+                                    size="small" 
+                                    color="error"
+                                    onClick={() => handleDelete(produit.id)}
+                                  >
+                                    <Delete />
+                                  </IconButton>
+                                </Box>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {filteredInventaire.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                            {searchTerm ? 'Aucun produit trouvé pour cette recherche' : 'Aucun produit dans l\'inventaire'}
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                    {filteredInventaire.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                          {searchTerm ? 'Aucun produit trouvé pour cette recherche' : 'Aucun produit dans l\'inventaire'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Box>
             )}
           </Paper>

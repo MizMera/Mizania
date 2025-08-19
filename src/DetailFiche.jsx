@@ -20,7 +20,8 @@ import {
   TextField,
   Chip,
   Divider,
-  CircularProgress
+  CircularProgress,
+  TableContainer
 } from '@mui/material';
 import { Print as PrintIcon, Payment as PaymentIcon } from '@mui/icons-material';
 
@@ -255,7 +256,7 @@ function DetailFiche() {
   return (
     <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Invoice settings */}
-      <Stack direction="row" spacing={2} sx={{ mb: 1 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 1 }}>
         <TextField
           label="Entreprise"
           size="small"
@@ -282,7 +283,7 @@ function DetailFiche() {
       </Stack>
       {/* Header */}
       <Box sx={{ flexShrink: 0 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" spacing={2}>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Fiche #{fiche.id}
           </Typography>
@@ -313,7 +314,7 @@ function DetailFiche() {
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', gap: 2, overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, display: 'flex', gap: 2, overflow: 'hidden', flexDirection: { xs: 'column', md: 'row' } }}>
         {/* Left Side - Client Info and Details */}
         <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
           {/* Client Information */}
@@ -334,35 +335,37 @@ function DetailFiche() {
             <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <Typography variant="h6" gutterBottom>Pièces et Main d'œuvre</Typography>
               <Box sx={{ flex: 1, overflow: 'auto' }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Prix Unitaire</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {details.map(d => (
-                      <TableRow key={d.id} hover>
-                        <TableCell>{d.description}</TableCell>
-                        <TableCell align="center">{d.quantite}</TableCell>
-                        <TableCell align="right">{(d.prix / d.quantite).toFixed(2)} DT</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                          {d.prix.toFixed(2)} DT
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {details.length === 0 && (
+                <TableContainer sx={{ maxHeight: { xs: 300, md: 420 } }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
                       <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
-                          Aucun élément ajouté
-                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', display: { xs: 'none', sm: 'table-cell' } }}>Prix Unitaire</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {details.map(d => (
+                        <TableRow key={d.id} hover>
+                          <TableCell>{d.description}</TableCell>
+                          <TableCell align="center">{d.quantite}</TableCell>
+                          <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{(d.prix / d.quantite).toFixed(2)} DT</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            {d.prix.toFixed(2)} DT
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {details.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                            Aucun élément ajouté
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Box>
               <Divider sx={{ my: 2 }} />
               <Stack direction="row" justifyContent="space-between" alignItems="center">

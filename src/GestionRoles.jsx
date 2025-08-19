@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { toast } from 'react-toastify';
-import { Select, MenuItem, FormControl, InputLabel, Box, Typography, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Paper } from '@mui/material';
+import { Select, MenuItem, FormControl, InputLabel, Box, Typography, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Paper, TableContainer } from '@mui/material';
 
 function GestionRoles() {
   const [users, setUsers] = useState([]);
@@ -80,51 +80,53 @@ function GestionRoles() {
       <Typography variant="h4" sx={{ fontWeight: 800 }}>Gestion des Utilisateurs</Typography>
       
       <Paper sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Email</TableCell>
-                <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>ID Utilisateur</TableCell>
-                <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Créé le</TableCell>
-                <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Dernière connexion</TableCell>
-                <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Rôle</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.length === 0 ? (
+        <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+          <TableContainer sx={{ maxHeight: { xs: 420, md: 600 }, overflowX: 'auto' }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 800 }}>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                    <Typography color="text.secondary">Aucun utilisateur trouvé</Typography>
-                  </TableCell>
+                  <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Email</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold', display: { xs: 'none', sm: 'table-cell' } }}>ID Utilisateur</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold', display: { xs: 'none', sm: 'table-cell' } }}>Créé le</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold', display: { xs: 'none', sm: 'table-cell' } }}>Dernière connexion</TableCell>
+                  <TableCell sx={{ bgcolor: 'background.paper', fontWeight: 'bold' }}>Rôle</TableCell>
                 </TableRow>
-              ) : (
-                users.map(user => (
-                  <TableRow key={user.id} hover>
-                    <TableCell>{user.email || '—'}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{user.id}</TableCell>
-                    <TableCell>{user.created_at ? new Date(user.created_at).toLocaleString('fr-FR') : '—'}</TableCell>
-                    <TableCell>{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : '—'}</TableCell>
-                    <TableCell>
-                      <FormControl size="small" sx={{ minWidth: 140 }}>
-                        <InputLabel id={`role-label-${user.id}`}>Rôle</InputLabel>
-                        <Select
-                          labelId={`role-label-${user.id}`}
-                          label="Rôle"
-                          value={user.role || 'visiteur'}
-                          onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                        >
-                          <MenuItem value="visiteur">Visiteur</MenuItem>
-                          <MenuItem value="technicien">Technicien</MenuItem>
-                          <MenuItem value="admin">Admin</MenuItem>
-                        </Select>
-                      </FormControl>
+              </TableHead>
+              <TableBody>
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary">Aucun utilisateur trouvé</Typography>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  users.map(user => (
+                    <TableRow key={user.id} hover>
+                      <TableCell>{user.email || '—'}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', display: { xs: 'none', sm: 'table-cell' } }}>{user.id}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{user.created_at ? new Date(user.created_at).toLocaleString('fr-FR') : '—'}</TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : '—'}</TableCell>
+                      <TableCell>
+                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                          <InputLabel id={`role-label-${user.id}`}>Rôle</InputLabel>
+                          <Select
+                            labelId={`role-label-${user.id}`}
+                            label="Rôle"
+                            value={user.role || 'visiteur'}
+                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                          >
+                            <MenuItem value="visiteur">Visiteur</MenuItem>
+                            <MenuItem value="technicien">Technicien</MenuItem>
+                            <MenuItem value="admin">Admin</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Box>
       </Paper>
     </Box>

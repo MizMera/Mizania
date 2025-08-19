@@ -809,7 +809,7 @@ function Dashboard() {
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
               Activité Récente Détaillée
             </Typography>
-            <TableContainer sx={{ maxHeight: 600 }}>
+            <TableContainer sx={{ maxHeight: 600, minWidth: 360 }}>
               <Table stickyHeader size="medium">
                 <TableHead>
                   <TableRow>

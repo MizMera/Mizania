@@ -27,7 +27,9 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  // add TableContainer for responsive scroll on mobile
+  TableContainer
 } from '@mui/material';
 import {
   Add,
@@ -377,14 +379,15 @@ function GestionDepenses() {
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6">Liste des Dépenses ({depenses.length}){editingId && (<Chip label="Mode édition" color="warning" size="small" sx={{ ml: 2 }} />)}</Typography>
         </Box>
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', width: '100%' }}>
+        {/* Use TableContainer for better mobile scrolling */}
+        <TableContainer sx={{ maxHeight: { xs: 360, md: 540 }, overflowX: 'auto' }}>
+          <Table size="small" stickyHeader sx={{ minWidth: 900 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', width: '8%' }}>ID</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '8%', display: { xs: 'none', sm: 'table-cell' } }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>Date/Heure</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '10%' }}>Portefeuille</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', width: '12%' }}>Catégorie</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '10%', display: { xs: 'none', sm: 'table-cell' } }}>Portefeuille</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', width: '12%', display: { xs: 'none', sm: 'table-cell' } }}>Catégorie</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '33%' }}>Description</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold', width: '12%' }}>Montant (DT)</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 'bold', width: '10%' }}>Actions</TableCell>
@@ -393,21 +396,21 @@ function GestionDepenses() {
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>Chargement...</TableCell>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Chargement...</TableCell>
                 </TableRow>
               )}
               {!loading && depenses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune dépense trouvée</TableCell>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune dépense trouvée</TableCell>
                 </TableRow>
               )}
               {!loading && depenses.map(expense => {
                 const isEditing = editingId === expense.id;
                 return (
                   <TableRow key={expense.id} hover sx={{ bgcolor: isEditing ? 'rgba(255, 193, 7, 0.1)' : 'inherit' }}>
-                    <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>#{expense.id}</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', display: { xs: 'none', sm: 'table-cell' } }}>#{expense.id}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace', fontSize: '0.8rem' }}>{fmtDateTime(expense.created_at)}</TableCell>
-                    <TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                       {isEditing ? (
                         <FormControl size="small" fullWidth>
                           <Select value={editValues.wallet || 'Caisse'} onChange={(e) => setEditValues({ ...editValues, wallet: e.target.value })}>
@@ -418,7 +421,7 @@ function GestionDepenses() {
                         <Chip size="small" label={expense.wallet || 'Caisse'} />
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                       {isEditing ? (
                         <FormControl size="small" fullWidth>
                           <Select value={editValues.categorie || ''} onChange={(e) => setEditValues({ ...editValues, categorie: e.target.value })}>
@@ -468,7 +471,7 @@ function GestionDepenses() {
               )}
             </TableBody>
           </Table>
-        </Box>
+        </TableContainer>
       </Paper>
 
       {/* Delete Confirmation Dialog */}

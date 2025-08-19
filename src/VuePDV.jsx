@@ -22,7 +22,8 @@ import {
   Stack,
   ToggleButton,
   ToggleButtonGroup,
-  Grid
+  Grid,
+  TableContainer
 } from '@mui/material';
 import { Add, Remove, Delete, Print as PrintIcon, ShoppingCartCheckout } from '@mui/icons-material';
 import jsPDF from 'jspdf';
@@ -178,6 +179,8 @@ function VuePDV() {
     const totalVente = parseFloat(calculerTotal());
     const coutTotalVente = calculerCoutTotal();
     const ticketNo = `T-${Date.now()}`;
+    const totalLignes = panier.length;
+    const totalArticles = panier.reduce((s, i) => s + Number(i.quantite || 1), 0);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -189,7 +192,7 @@ function VuePDV() {
         source: `Vente au Détail - ${modePaiement}`,
         montant: totalVente,
         cout_total: coutTotalVente,
-        description: `Ticket ${ticketNo} | ${panier.length} ligne(s) | Paiement: ${modePaiement}`,
+        description: `Ticket ${ticketNo} | ${totalLignes} ligne(s), ${totalArticles} article(s) | Paiement: ${modePaiement}`,
         user_id: user?.id || null
       };
 
@@ -331,7 +334,7 @@ function VuePDV() {
       </Card>
 
       {/* Main Content Area - Side by Side Layout */}
-      <Box sx={{ flex: 1, display: 'flex', gap: 2, overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, display: 'flex', gap: 2, overflow: 'hidden', flexDirection: { xs: 'column', lg: 'row' } }}>
         {/* Left Column: Product/Service Selection */}
         <Card sx={{ flex: { xs: 1, lg: 3 }, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -430,9 +433,9 @@ function VuePDV() {
         </Card>
 
         {/* Right Column: Shopping Cart */}
-        <Card sx={{ flex: { xs: 1, lg: 2 }, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 400 }}>
+        <Card sx={{ flex: { xs: 1, lg: 2 }, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: { xs: 'auto', md: 400 } }}>
           <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2, flexShrink: 0 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" sx={{ mb: 2, flexShrink: 0 }}>
               <Typography variant="h6">Panier</Typography>
               <Stack direction="row" spacing={1}>
                 <ToggleButtonGroup
@@ -449,56 +452,58 @@ function VuePDV() {
             </Stack>
 
             <Box sx={{ flex: 1, overflow: 'auto', mb: 2 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Article</TableCell>
-                    <TableCell align="right">PU (DT)</TableCell>
-                    <TableCell align="center">Qté</TableCell>
-                    <TableCell align="right">Total (DT)</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {panier.map(item => (
-                    <TableRow key={`${item.type_item}-${item.id}`} hover>
-                      <TableCell>{item.nom || item.description || item.sku || item.id}</TableCell>
-                      <TableCell align="right">{Number(item.prix_vente).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                          <IconButton size="small" onClick={() => incrementer(item.id, item.type_item, -1)} disabled={item.quantite <= 1}>
-                            <Remove fontSize="small" />
-                          </IconButton>
-                          <TextField
-                            type="number"
-                            size="small"
-                            value={item.quantite}
-                            onChange={e => changerQuantite(item.id, item.type_item, e.target.value)}
-                            sx={{ width: 70 }}
-                            inputProps={{ min: 1 }}
-                          />
-                          <IconButton size="small" onClick={() => incrementer(item.id, item.type_item, +1)}>
-                            <Add fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      </TableCell>
-                      <TableCell align="right">{(Number(item.prix_vente) * Number(item.quantite)).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        <IconButton color="error" onClick={() => retirerDuPanier(item.id, item.type_item)}>
-                          <Delete />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {panier.length === 0 && (
+              <TableContainer sx={{ maxHeight: { xs: 300, md: 420 }, overflowX: 'auto' }}>
+                <Table size="small" stickyHeader sx={{ minWidth: 600 }}>
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 4 }}>
-                        Aucun article dans le panier
-                      </TableCell>
+                      <TableCell>Article</TableCell>
+                      <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>PU (DT)</TableCell>
+                      <TableCell align="center">Qté</TableCell>
+                      <TableCell align="right">Total (DT)</TableCell>
+                      <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Actions</TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {panier.map(item => (
+                      <TableRow key={`${item.type_item}-${item.id}`} hover>
+                        <TableCell>{item.nom || item.description || item.sku || item.id}</TableCell>
+                        <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{Number(item.prix_vente).toFixed(2)}</TableCell>
+                        <TableCell align="center">
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
+                            <IconButton size="small" onClick={() => incrementer(item.id, item.type_item, -1)} disabled={item.quantite <= 1}>
+                              <Remove fontSize="small" />
+                            </IconButton>
+                            <TextField
+                              type="number"
+                              size="small"
+                              value={item.quantite}
+                              onChange={e => changerQuantite(item.id, item.type_item, e.target.value)}
+                              sx={{ width: 70 }}
+                              inputProps={{ min: 1 }}
+                            />
+                            <IconButton size="small" onClick={() => incrementer(item.id, item.type_item, +1)}>
+                              <Add fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                        <TableCell align="right">{(Number(item.prix_vente) * Number(item.quantite)).toFixed(2)}</TableCell>
+                        <TableCell align="center" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                          <IconButton color="error" onClick={() => retirerDuPanier(item.id, item.type_item)}>
+                            <Delete />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {panier.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 4 }}>
+                          Aucun article dans le panier
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
 
             <Box sx={{ flexShrink: 0 }}>
