@@ -101,7 +101,7 @@ function DetailFiche() {
           source: 'Paiement Réparation',
           montant: totalFinal,
           cout_total: coutTotalReparation,
-          description: `Facture pour fiche de réparation #${fiche.id}`,
+          description: `Facture pour fiche de réparation #${fiche.id} | Client: ${fiche.clients?.nom || '—'} | Articles: ${details.map(d => `${d.description} x${d.quantite}`).join(', ')}`,
           user_id: user?.id || null
         });
       if (transactionError) throw transactionError;

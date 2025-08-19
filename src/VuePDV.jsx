@@ -181,6 +181,10 @@ function VuePDV() {
     const ticketNo = `T-${Date.now()}`;
     const totalLignes = panier.length;
     const totalArticles = panier.reduce((s, i) => s + Number(i.quantite || 1), 0);
+    // Build a compact items list: "Nom xQté"
+    const itemsList = panier
+      .map(i => `${(i.nom || i.description || i.sku || 'Article')} x${i.quantite}`)
+      .join(', ');
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -192,7 +196,8 @@ function VuePDV() {
         source: `Vente au Détail - ${modePaiement}`,
         montant: totalVente,
         cout_total: coutTotalVente,
-        description: `Ticket ${ticketNo} | ${totalLignes} ligne(s), ${totalArticles} article(s) | Paiement: ${modePaiement}`,
+        // Add explicit items to description so other views can parse and show them
+        description: `Ticket ${ticketNo} | ${totalLignes} ligne(s), ${totalArticles} article(s) | Articles: ${itemsList} | Paiement: ${modePaiement}`,
         user_id: user?.id || null
       };
 
