@@ -33,9 +33,10 @@ function GestionEncaisse() {
   
   // Date filters
   const [date, setDate] = useState(() => {
+    // Use local date string (YYYY-MM-DD) to avoid timezone shift from toISOString
     const d = new Date();
-    d.setHours(0,0,0,0);
-    return d.toISOString().slice(0,10);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   });
   const [from, setFrom] = useState(() => {
     const d = new Date(now.getTime() - 7 * 86400000);
@@ -84,20 +85,24 @@ function GestionEncaisse() {
       setLoading(true);
       let start, end;
       if (viewMode === 'daily') {
+        // Build local day boundaries and convert after
         start = new Date(date + 'T00:00:00');
-        end = new Date(date + 'T23:59:59');
+        end = new Date(date + 'T23:59:59.999');
       } else {
         start = new Date(from);
         end = new Date(to);
       }
+
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
 
       // Revenus (exclude internal if possible)
       let transQuery = supabase
         .from('transactions')
         .select('*')
         .eq('type', 'Revenu')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
         .order('created_at', { ascending: false });
       try { transQuery = transQuery.neq('is_internal', true); } catch (_) {}
       let { data: transData, error: transError } = await transQuery;
@@ -106,8 +111,8 @@ function GestionEncaisse() {
           .from('transactions')
           .select('*')
           .eq('type', 'Revenu')
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString())
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
           .order('created_at', { ascending: false });
         transData = retry.data; transError = retry.error;
       }
@@ -120,8 +125,8 @@ function GestionEncaisse() {
           .from('transactions')
           .select('*')
           .eq('type', 'Dépense')
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString())
+          .gte('created_at', startIso)
+          .lte('created_at', endIso)
           .order('created_at', { ascending: true });
         try { depBase = depBase.neq('is_internal', true); } catch (_) {}
         let { data: depData, error: depErr } = await depBase;
@@ -130,8 +135,8 @@ function GestionEncaisse() {
             .from('transactions')
             .select('*')
             .eq('type', 'Dépense')
-            .gte('created_at', start.toISOString())
-            .lte('created_at', end.toISOString())
+            .gte('created_at', startIso)
+            .lte('created_at', endIso)
             .order('created_at', { ascending: true });
           depData = retry.data; depErr = retry.error;
         }
