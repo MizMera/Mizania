@@ -41,15 +41,15 @@ const collapsedWidth = 72; // icon-only width
 
 // Customize each item: choose icon gradients and colors
 const menuItems = [
-  { text: 'Tableau de Bord', path: '/dashboard', Icon: DashboardIcon, iconColor: '#E0E7FF', iconBg: ['#4338CA', '#6366F1'] },
-  { text: 'Inventaire', path: '/', Icon: InventoryIcon, iconColor: '#D1FAE5', iconBg: ['#065F46', '#10B981'] },
-  { text: 'Point de Vente', path: '/pdv', Icon: POSIcon, iconColor: '#FFE4E6', iconBg: ['#BE123C', '#F43F5E'] },
-  { text: 'Réparations', path: '/reparations', Icon: RepairIcon, iconColor: '#FEF3C7', iconBg: ['#B45309', '#F59E0B'] },
-  { text: 'Gestion Encaisse', path: '/gestion-encaisse', Icon: POSIcon, iconColor: '#E0F2FE', iconBg: ['#0369A1', '#0EA5E9'] },
-  { text: 'Dépenses', path: '/depenses', Icon: RepairIcon, iconColor: '#F3E8FF', iconBg: ['#6D28D9', '#A78BFA'] },
-  { text: 'Transferts', path: '/transferts', Icon: POSIcon, iconColor: '#DCFCE7', iconBg: ['#166534', '#22C55E'] },
-  { text: 'Clients', path: '/clients', Icon: GroupIcon, iconColor: '#E5E7EB', iconBg: ['#111827', '#374151'] },
-  { text: 'Administration', path: '/admin', Icon: AccountCircle, iconColor: '#FFEDD5', iconBg: ['#9A3412', '#FB923C'] },
+  { text: 'Tableau de Bord', path: '/dashboard', Icon: DashboardIcon },
+  { text: 'Inventaire', path: '/', Icon: InventoryIcon },
+  { text: 'Point de Vente', path: '/pdv', Icon: POSIcon },
+  { text: 'Réparations', path: '/reparations', Icon: RepairIcon },
+  { text: 'Gestion Encaisse', path: '/gestion-encaisse', Icon: POSIcon },
+  { text: 'Dépenses', path: '/depenses', Icon: RepairIcon },
+  { text: 'Transferts', path: '/transferts', Icon: POSIcon },
+  { text: 'Clients', path: '/clients', Icon: GroupIcon },
+  { text: 'Administration', path: '/admin', Icon: AccountCircle },
 ];
 
 function Layout() {
@@ -107,29 +107,12 @@ function Layout() {
                 '&.Mui-selected': {
                   backgroundColor: 'rgba(99,102,241,0.15)',
                   borderRight: '3px solid #6366F1',
-                  '& .MuiListItemIcon-root': { color: '#A5B4FC' },
                   '& .MuiListItemText-primary': { color: '#E5E7EB', fontWeight: 'bold' },
-                  '& .iconWrap': { boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.18), 0 10px 24px rgba(0,0,0,0.35)', transform: 'translateY(-1px)' }
                 },
-                '&:hover .iconWrap': { transform: 'translateY(-1px)' },
               }}
             >
               <ListItemIcon sx={{ color: 'inherit' }}>
-                <Box
-                  className="iconWrap"
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    background: `linear-gradient(135deg, ${item.iconBg[0]}, ${item.iconBg[1]})`,
-                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06), 0 8px 20px rgba(0,0,0,0.25)',
-                    transition: 'transform .2s ease, box-shadow .2s ease',
-                  }}
-                >
-                  <item.Icon sx={{ color: item.iconColor, fontSize: 22 }} />
-                </Box>
+                <item.Icon sx={{ fontSize: 24 }} />
               </ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
