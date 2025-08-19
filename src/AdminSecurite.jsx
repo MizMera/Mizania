@@ -76,7 +76,7 @@ function AdminSecurite() {
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Gestion des Invitations
                   </Typography>
-                  <GestionInvitations />
+                  <GestionInvitations embedded />
                 </Paper>
               </Grid>
               <Grid item xs={12} md={6}>
@@ -84,7 +84,7 @@ function AdminSecurite() {
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Gestion des Rôles
                   </Typography>
-                  <GestionRoles />
+                  <GestionRoles embedded />
                 </Paper>
               </Grid>
             </Grid>

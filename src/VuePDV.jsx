@@ -113,6 +113,15 @@ function VuePDV() {
     return inventaire.filter(p => `${p.nom} ${p.sku || ''}`.toLowerCase().includes(q));
   }, [inventaire, recherche]);
 
+  // Helpers de stock
+  const stockDisponible = (id) => {
+    const prod = inventaire.find(p => p.id === id);
+    return typeof prod?.quantite_stock === 'number' ? Number(prod.quantite_stock) : Infinity;
+  };
+  const quantiteDansPanier = (id) => panier
+    .filter(i => i.id === id && i.type_item === 'product')
+    .reduce((s, i) => s + Number(i.quantite || 0), 0);
+
   const ajouterAuPanier = (article, options = {}) => {
     const isService = options.isService || article.type_item === 'service';
     const id = article.id;
@@ -125,9 +134,39 @@ function VuePDV() {
       prix_achat: Number(article.prix_achat || 0)
     };
 
+    // Contrôle de stock pour les produits
+    if (!isService) {
+      const dispo = stockDisponible(id);
+      const deja = quantiteDansPanier(id);
+      const restant = dispo - deja;
+      if (restant <= 0) {
+        toast.error(`Stock insuffisant pour "${article.nom}" (disponible: ${dispo}).`);
+        return;
+      }
+      if (baseItem.quantite > restant) {
+        toast.warn(`Stock limité pour "${article.nom}". Ajout de ${restant} (disponible: ${dispo}).`);
+        baseItem.quantite = restant;
+      }
+    }
+
     setPanier(prev => {
       const exist = prev.find(i => i.id === id && i.type_item === baseItem.type_item);
       if (exist) {
+        // Si produit, re-vérifier la limite
+        if (baseItem.type_item === 'product') {
+          const dispo = stockDisponible(id);
+          const deja = quantiteDansPanier(id);
+          const restant = dispo - deja;
+          const add = Math.min(restant, baseItem.quantite);
+          if (add <= 0) {
+            toast.error(`Stock insuffisant pour "${article.nom}" (disponible: ${dispo}).`);
+            return prev;
+          }
+          return prev.map(i => i.id === id && i.type_item === baseItem.type_item
+            ? { ...i, quantite: i.quantite + add }
+            : i
+          );
+        }
         return prev.map(i => i.id === id && i.type_item === baseItem.type_item
           ? { ...i, quantite: i.quantite + baseItem.quantite }
           : i
@@ -139,11 +178,38 @@ function VuePDV() {
 
   const changerQuantite = (id, type_item, q) => {
     const quant = Math.max(1, Number(q) || 1);
-    setPanier(prev => prev.map(i => i.id === id && i.type_item === type_item ? { ...i, quantite: quant } : i));
+    setPanier(prev => prev.map(i => {
+      if (i.id === id && i.type_item === type_item) {
+        if (type_item === 'product') {
+          const dispo = stockDisponible(id);
+          const newQty = Math.min(quant, dispo);
+          if (newQty < quant) {
+            toast.warn(`Quantité ajustée au stock disponible (${dispo}).`);
+          }
+          return { ...i, quantite: Math.max(1, newQty) };
+        }
+        return { ...i, quantite: quant };
+      }
+      return i;
+    }));
   };
 
   const incrementer = (id, type_item, d = 1) => {
-    setPanier(prev => prev.map(i => i.id === id && i.type_item === type_item ? { ...i, quantite: i.quantite + d } : i));
+    setPanier(prev => prev.map(i => {
+      if (i.id === id && i.type_item === type_item) {
+        if (type_item === 'product' && d > 0) {
+          const dispo = stockDisponible(id);
+          const desired = i.quantite + d;
+          if (desired > dispo) {
+            toast.warn(`Stock maximum atteint (${dispo}).`);
+            return { ...i, quantite: dispo };
+          }
+        }
+        const next = Math.max(1, i.quantite + d);
+        return { ...i, quantite: next };
+      }
+      return i;
+    }));
   };
 
   const retirerDuPanier = (id, type_item) => {
@@ -174,6 +240,27 @@ function VuePDV() {
     if (panier.length === 0) {
       toast.error('Le panier est vide !');
       return;
+    }
+
+    // Re-vérification côté serveur: s'assurer que le stock est suffisant avant de créer la transaction
+    const produitsPanier = panier.filter(i => i.type_item === 'product');
+    if (produitsPanier.length > 0) {
+      const ids = produitsPanier.map(i => i.id);
+      const { data: stocksFresh, error: stockErr } = await supabase
+        .from('inventaire')
+        .select('id, quantite_stock, nom')
+        .in('id', ids);
+      if (stockErr) {
+        toast.error("Erreur de vérification de stock.");
+        return;
+      }
+      const mapFresh = Object.fromEntries((stocksFresh || []).map(r => [r.id, r]));
+      const insuff = produitsPanier.filter(i => (mapFresh[i.id]?.quantite_stock ?? 0) < i.quantite);
+      if (insuff.length) {
+        const msg = insuff.map(i => `"${mapFresh[i.id]?.nom || i.nom}": dispo ${mapFresh[i.id]?.quantite_stock ?? 0}, demandé ${i.quantite}`).join(' | ');
+        toast.error(`Stock insuffisant: ${msg}`);
+        return;
+      }
     }
 
     const totalVente = parseFloat(calculerTotal());
@@ -211,21 +298,36 @@ function VuePDV() {
 
       if (transactionError) throw transactionError;
 
-      // MAJ stock uniquement pour les produits (objets ayant quantite_stock défini)
-      const produitsPanier = panier.filter(i => typeof i.quantite_stock === 'number');
-      if (produitsPanier.length) {
-        const misesAJourStock = produitsPanier.map(item => {
-          const nouveauStock = item.quantite_stock - item.quantite;
+      // MAJ stock uniquement pour les produits avec une relecture fraiche
+      const produitsMaj = panier.filter(i => i.type_item === 'product');
+      if (produitsMaj.length) {
+        const ids = produitsMaj.map(i => i.id);
+        const { data: stocksFresh } = await supabase
+          .from('inventaire')
+          .select('id, quantite_stock')
+          .in('id', ids);
+        const mapFresh = Object.fromEntries((stocksFresh || []).map(r => [r.id, r.quantite_stock]));
+        const updates = produitsMaj.map(item => {
+          const dispo = Number(mapFresh[item.id] ?? 0);
+          const nouveauStock = Math.max(0, dispo - Number(item.quantite));
           return supabase
             .from('inventaire')
             .update({ quantite_stock: nouveauStock })
             .eq('id', item.id);
         });
-        await Promise.all(misesAJourStock);
+        await Promise.all(updates);
       }
 
       toast.success(`Vente ${ticketNo} de ${totalVente.toFixed(2)} DT enregistrée !`);
       setPanier([]);
+      // Recharger l'inventaire pour refléter les stocks
+      try {
+        const { data: invData } = await supabase
+          .from('inventaire')
+          .select('*')
+          .eq('type_article', 'Produit de Vente');
+        setInventaire(invData || []);
+      } catch {}
     } catch (error) {
       toast.error("Erreur lors de l'encaissement: " + error.message);
     }
@@ -349,52 +451,57 @@ function VuePDV() {
             <Box sx={{ flex: 1, overflow: 'auto' }}>
               {onglet === 'produits' && (
                 <Grid container spacing={1}>
-                  {produitsFiltres.map((p) => (
-                    <Grid item xs={6} sm={4} md={3} lg={2} key={p.id}>
-                      <Button
-                        variant="outlined"
-                        onClick={() => ajouterAuPanier(p)}
-                        fullWidth
-                        sx={{ 
-                          height: 76,
-                          p: 1,
-                          textTransform: 'none'
-                        }}
-                      >
-                        <Box sx={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 0.5,
-                          width: '100%',
-                          height: '100%'
-                        }}>
-                          <Typography
-                            sx={{
-                              textAlign: 'center',
-                              fontWeight: 700,
-                              fontSize: '0.8rem',
-                              lineHeight: 1.1,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitBoxOrient: 'vertical',
-                              WebkitLineClamp: 2,
-                              maxWidth: '100%'
-                            }}
-                          >
-                            {p.nom}
-                          </Typography>
-                          <Typography
-                            sx={{ color: '#10B981', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}
-                          >
-                            {Number(p.prix_vente).toFixed(2)} DT
-                          </Typography>
-                        </Box>
-                      </Button>
-                    </Grid>
-                  ))}
+                  {produitsFiltres.map((p) => {
+                    const out = Number(p.quantite_stock) <= 0;
+                    return (
+                      <Grid item xs={6} sm={4} md={3} lg={2} key={p.id}>
+                        <Button
+                          variant="outlined"
+                          onClick={() => ajouterAuPanier(p)}
+                          fullWidth
+                          disabled={out}
+                          sx={{ 
+                            height: 76,
+                            p: 1,
+                            textTransform: 'none',
+                            opacity: out ? 0.5 : 1
+                          }}
+                        >
+                          <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 0.5,
+                            width: '100%',
+                            height: '100%'
+                          }}>
+                            <Typography
+                              sx={{
+                                textAlign: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.8rem',
+                                lineHeight: 1.1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitBoxOrient: 'vertical',
+                                WebkitLineClamp: 2,
+                                maxWidth: '100%'
+                              }}
+                            >
+                              {p.nom}
+                            </Typography>
+                            <Typography
+                              sx={{ color: out ? 'text.disabled' : '#10B981', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}
+                            >
+                              {Number(p.prix_vente).toFixed(2)} DT{out ? ' (rupture)' : ''}
+                            </Typography>
+                          </Box>
+                        </Button>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               )}
 

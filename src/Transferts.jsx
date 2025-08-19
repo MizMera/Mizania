@@ -282,15 +282,15 @@ function Transferts() {
             <Grid item xs={12} sm={4} key={w}>
               <Card sx={{ boxShadow: '0 8px 24px rgba(15,23,42,0.08)' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Avatar sx={{ bgcolor: colorMap[w] || 'primary.main', width: 36, height: 36 }}>
+                      <AccountBalance sx={{ fontSize: '1rem' }} />
+                    </Avatar>
                     <Box>
                       <Typography color="text.secondary" variant="overline">{w}</Typography>
                       <Typography variant="h5" sx={{ fontWeight: 800 }}>{Number(val).toFixed(2)} DT</Typography>
                     </Box>
-                    <Avatar sx={{ bgcolor: colorMap[w] || 'primary.main' }}>
-                      <AccountBalance />
-                    </Avatar>
-                  </Box>
+                  </Stack>
                 </CardContent>
               </Card>
             </Grid>

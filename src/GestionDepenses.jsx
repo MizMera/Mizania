@@ -86,7 +86,7 @@ function GestionDepenses() {
     'Louer',
     'Autres'
   ];
-  const walletOptions = ['Caisse', 'Banque', 'Coffre'];
+  const walletOptions = ['Caisse', 'Banque', 'Coffre', 'Carte Postal', 'Carte Banker'];
 
   // Load expenses
   const loadDepenses = async () => {

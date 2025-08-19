@@ -1,5 +1,5 @@
 // src/Layout.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { toast } from 'react-toastify';
@@ -63,6 +63,18 @@ function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Quick Search state
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]); // {label, sublabel, path}
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchAnchorRef = useRef(null);
+  const debounceRef = useRef();
+
+  // Notifications state
+  const [notifAnchor, setNotifAnchor] = useState(null);
+  const [notifications, setNotifications] = useState([]); // {label, path}
+
   useEffect(() => {
     // Vérifier l'utilisateur actuel
     const getUser = async () => {
@@ -81,6 +93,13 @@ function Layout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // (Re)load notifications when route changes
+    loadNotifications();
+    // close search menu when route changes
+    setSearchOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAnchorEl(null);
@@ -90,6 +109,108 @@ function Layout() {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const commandSuggestions = useMemo(() => ([
+    { key: 'dashboard', label: 'Aller au Tableau de Bord', path: '/dashboard' },
+    { key: 'inventaire', label: 'Ouvrir Inventaire', path: '/' },
+    { key: 'pdv', label: 'Ouvrir Point de Vente', path: '/pdv' },
+    { key: 'reparations', label: 'Voir Réparations', path: '/reparations' },
+    { key: 'encaisse', label: 'Gestion Encaisse', path: '/gestion-encaisse' },
+    { key: 'depenses', label: 'Voir Dépenses', path: '/depenses' },
+    { key: 'transferts', label: 'Voir Transferts', path: '/transferts' },
+    { key: 'clients', label: 'Voir Clients', path: '/clients' },
+    { key: 'admin', label: 'Administration & Sécurité', path: '/admin' },
+  ]), []);
+
+  const runSearch = async (q) => {
+    const term = q.trim();
+    if (!term) { setSearchResults(commandSuggestions.slice(0, 5)); return; }
+
+    setSearchLoading(true);
+    try {
+      const results = [];
+      // Commands (by fuzzy prefix)
+      const cq = term.toLowerCase();
+      results.push(...commandSuggestions.filter(c => c.key.startsWith(cq) || c.label.toLowerCase().includes(cq)).slice(0, 5));
+
+      // Products (inventaire)
+      try {
+        const { data: inv } = await supabase
+          .from('inventaire')
+          .select('id, nom, sku, quantite_stock')
+          .or(`nom.ilike.%${term}%,sku.ilike.%${term}%`)
+          .limit(5);
+        (inv || []).forEach(p => {
+          results.push({
+            label: p.nom,
+            sublabel: `SKU ${p.sku || '—'} • Stock ${p.quantite_stock ?? '—'}`,
+            path: '/',
+          });
+        });
+      } catch (_) { /* ignore */ }
+
+      // Clients (best-effort if table exists)
+      try {
+        const { data: cls } = await supabase
+          .from('clients')
+          .select('id, nom, telephone, email')
+          .or(`nom.ilike.%${term}%,telephone.ilike.%${term}%,email.ilike.%${term}%`)
+          .limit(5);
+        (cls || []).forEach(c => {
+          results.push({
+            label: c.nom || c.email || c.telephone,
+            sublabel: [c.telephone, c.email].filter(Boolean).join(' • '),
+            path: '/clients',
+          });
+        });
+      } catch (_) { /* ignore */ }
+
+      setSearchResults(results.slice(0, 10));
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearch(val);
+    if (!searchOpen) setSearchOpen(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSearch(val), 250);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = searchResults[0];
+      if (first?.path) navigate(first.path);
+      setSearchOpen(false);
+    } else if (e.key === 'Escape') {
+      setSearchOpen(false);
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const items = [];
+      const [lowRes, repRes] = await Promise.all([
+        supabase.from('inventaire').select('id, nom, quantite_stock').lt('quantite_stock', 5).order('quantite_stock', { ascending: true }).limit(5),
+        supabase.from('fiches_reparation').select('id, statut').in('statut', ['Reçu','En cours'])
+      ]);
+      const low = lowRes.data || [];
+      const reps = repRes.data || [];
+      low.forEach(p => items.push({ label: `Stock faible: ${p.nom} (${p.quantite_stock})`, path: '/' }));
+      if (reps.length) {
+        const enCours = reps.filter(r => r.statut === 'En cours').length;
+        const recus = reps.filter(r => r.statut === 'Reçu').length;
+        if (recus) items.push({ label: `${recus} réparation(s) reçue(s)`, path: '/reparations' });
+        if (enCours) items.push({ label: `${enCours} réparation(s) en cours`, path: '/reparations' });
+      }
+      setNotifications(items);
+    } catch (_) {
+      setNotifications([]);
+    }
   };
 
   const drawer = (
@@ -150,8 +271,8 @@ function Layout() {
             <MenuIcon />
           </IconButton>
 
-          {/* Search */}
-          <Box sx={{
+          {/* Quick Search */}
+          <Box ref={searchAnchorRef} sx={{
             flexGrow: 1,
             display: 'flex',
             alignItems: 'center',
@@ -163,12 +284,21 @@ function Layout() {
             border: '1px solid rgba(148,163,184,0.12)'
           }}>
             <Search sx={{ mr: 1, color: 'text.secondary' }} fontSize="small" />
-            <InputBase placeholder="Rechercher..." fullWidth sx={{ fontSize: 14 }} />
+            <InputBase
+              placeholder="Rechercher… (ex: pdv, clients, papier, 2233)"
+              fullWidth
+              sx={{ fontSize: 14 }}
+              value={search}
+              onChange={handleSearchChange}
+              onFocus={() => { setSearchOpen(true); runSearch(search); }}
+              onKeyDown={handleSearchKeyDown}
+            />
           </Box>
 
+          {/* Notifications + Profile */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <IconButton color="inherit">
-              <Badge color="secondary" variant="dot">
+            <IconButton color="inherit" onClick={(e) => setNotifAnchor(e.currentTarget)}>
+              <Badge color="secondary" badgeContent={notifications.length} max={9}>
                 <NotificationsNone />
               </Badge>
             </IconButton>
@@ -185,6 +315,58 @@ function Layout() {
               </Avatar>
             </IconButton>
           </Box>
+
+          {/* Search Results Menu */}
+          <Menu
+            anchorEl={searchAnchorRef.current}
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+            PaperProps={{ sx: { minWidth: 420, maxWidth: 520 } }}
+          >
+            <Box sx={{ px: 1, py: 0.5 }}>
+              {searchLoading && (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 1 }}>Recherche…</Typography>
+              )}
+              {!searchLoading && searchResults.length === 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 1 }}>Aucun résultat</Typography>
+              )}
+              {!searchLoading && searchResults.length > 0 && (
+                <List dense>
+                  {searchResults.map((r, idx) => (
+                    <ListItemButton key={idx} onClick={() => { setSearchOpen(false); if (r.path) navigate(r.path); }}>
+                      <ListItemText primary={r.label} secondary={r.sublabel} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </Menu>
+
+          {/* Notifications Menu */}
+          <Menu
+            anchorEl={notifAnchor}
+            open={Boolean(notifAnchor)}
+            onClose={() => setNotifAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            PaperProps={{ sx: { minWidth: 320 } }}
+          >
+            <Box sx={{ px: 1, py: 1 }}>
+              {notifications.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 1 }}>Aucune notification</Typography>
+              ) : (
+                <List dense>
+                  {notifications.map((n, idx) => (
+                    <ListItemButton key={idx} onClick={() => { setNotifAnchor(null); if (n.path) navigate(n.path); }}>
+                      <ListItemText primary={n.label} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </Menu>
 
           <Menu
             id="menu-appbar"

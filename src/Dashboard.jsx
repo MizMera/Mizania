@@ -261,10 +261,10 @@ function Dashboard() {
         const { data: wb, error: werr } = await supabase
           .from('transactions')
           .select('type,montant,wallet,description')
-          .in('wallet', ['Caisse','Banque','Coffre']);
+          .in('wallet', ['Caisse','Banque','Coffre','Carte Postal','Carte Banker']);
         
         if (werr) throw werr;
-        const balances = { Caisse: 0, Banque: 0, Coffre: 0 };
+        const balances = { Caisse: 0, Banque: 0, Coffre: 0, 'Carte Postal': 0, 'Carte Banker': 0 };
         (wb || []).forEach(r => {
           const w = r.wallet;
           const n = Number(r.montant) || 0;
@@ -503,7 +503,7 @@ function Dashboard() {
   }
 
   const walletTag = (w) => {
-    const map = { Caisse: 'success', Banque: 'info', Coffre: 'warning' };
+    const map = { Caisse: 'success', Banque: 'info', Coffre: 'warning', 'Carte Postal': 'primary', 'Carte Banker': 'secondary' };
     return <Chip size="small" color={map[w] || 'default'} label={w || '—'} variant={map[w] ? 'filled' : 'outlined'} sx={{ ml: 1 }} />;
   };
 
@@ -679,11 +679,13 @@ function Dashboard() {
                 {Object.entries(walletBalances).map(([wallet, balance]) => {
                   const colors = {
                     Caisse: '#22C55E',
-                    Banque: '#3B82F6', 
-                    Coffre: '#F59E0B'
-                  };  
+                    Banque: '#3B82F6',
+                    Coffre: '#F59E0B',
+                    'Carte Postal': '#06B6D4',
+                    'Carte Banker': '#8B5CF6'
+                  };
                   return (
-                    <Box 
+                    <Box
                       key={wallet}
                       sx={{
                         p: 2,
@@ -692,18 +694,20 @@ function Dashboard() {
                         border: `1px solid ${colors[wallet]}20`
                       }}
                     >
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1 rem' }}>
-                            {wallet}
-                          </Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            {balance.toFixed(2)} DT
-                          </Typography>
-                        </Box>
-                        <Avatar sx={{ bgcolor: colors[wallet], width: 32, height: 32 }}>
-                          <AccountBalance sx={{ fontSize: '1rem' }} />
-                        </Avatar>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Avatar sx={{ bgcolor: colors[wallet], width: 32, height: 32 }}>
+                            <AccountBalance sx={{ fontSize: '1rem' }} />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" color="text.secondary">
+                              {wallet}
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                              {balance.toFixed(2)} DT
+                            </Typography>
+                          </Box>
+                        </Stack>
                       </Stack>
                     </Box>
                   );
