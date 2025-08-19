@@ -35,7 +35,7 @@ import { PictureAsPdf } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const WALLET_OPTIONS = ['Caisse', 'Banque', 'Coffre'];
+const WALLET_OPTIONS = ['Caisse', 'Banque', 'Coffre', 'Carte Postal', 'Carte Banker'];
 
 function Transferts() {
   const [fromWallet, setFromWallet] = useState('Caisse');
@@ -116,11 +116,11 @@ function Transferts() {
       const { data, error } = await supabase
         .from('transactions')
         .select('type,montant,wallet,description,source')
-        .in('wallet', ['Caisse','Banque','Coffre']);
+        .in('wallet', WALLET_OPTIONS);
         
       if (error) throw error;
       const rows = data || [];
-      const balances = { Caisse: 0, Banque: 0, Coffre: 0 };
+      const balances = Object.fromEntries(WALLET_OPTIONS.map(w => [w, 0]));
       
       const toWallet = (r) => {
         if (r.wallet && WALLET_OPTIONS.includes(r.wallet)) return r.wallet;
@@ -266,14 +266,14 @@ function Transferts() {
   };
 
   const walletChip = (w) => {
-    const map = { Caisse: 'success', Banque: 'info', Coffre: 'warning' };
+    const map = { Caisse: 'success', Banque: 'info', Coffre: 'warning', 'Carte Postal': 'primary', 'Carte Banker': 'secondary' };
     const color = map[w] || 'default';
     return <Chip size="small" color={color} label={w} variant={color === 'default' ? 'outlined' : 'filled'} />;
   };
 
   const BalanceCards = () => {
     if (!balances) return null;
-    const colorMap = { Caisse: '#22C55E', Banque: '#3B82F6', Coffre: '#F59E0B' };
+    const colorMap = { Caisse: '#22C55E', Banque: '#3B82F6', Coffre: '#F59E0B', 'Carte Postal': '#06B6D4', 'Carte Banker': '#8B5CF6' };
     return (
       <Paper sx={{ p: { xs: 2, sm: 3 }, mx: { xs: 2, sm: 3 } }}>
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Soldes Portefeuilles</Typography>

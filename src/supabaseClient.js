@@ -12,5 +12,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Erreur: Les variables d'environnement Supabase (VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY) sont requises.");
 }
 
-// L'export ne change pas, il utilise juste les variables chargées
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Client Supabase avec persistance de session et auto-refresh activés
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // storageKey optionnel si vous avez plusieurs projets/déploiements
+    // storageKey: 'mizania-auth',
+  },
+});

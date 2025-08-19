@@ -351,19 +351,47 @@ function VuePDV() {
                 <Grid container spacing={1}>
                   {produitsFiltres.map((p) => (
                     <Grid item xs={6} sm={4} md={3} lg={2} key={p.id}>
-                        <Button
+                      <Button
                         variant="outlined"
                         onClick={() => ajouterAuPanier(p)}
                         fullWidth
                         sx={{ 
-                          justifyContent: 'space-between',
-                          height: 64,
-                          flexDirection: 'column',
-                          fontSize: '0.75rem'
+                          height: 76,
+                          p: 1,
+                          textTransform: 'none'
                         }}
                       >
-                        <span style={{ textAlign: 'center', fontWeight: 'bold' }}>{p.nom}</span>
-                        <span style={{ color: '#10B981' }}>{Number(p.prix_vente).toFixed(2)} DT</span>
+                        <Box sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 0.5,
+                          width: '100%',
+                          height: '100%'
+                        }}>
+                          <Typography
+                            sx={{
+                              textAlign: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.8rem',
+                              lineHeight: 1.1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitBoxOrient: 'vertical',
+                              WebkitLineClamp: 2,
+                              maxWidth: '100%'
+                            }}
+                          >
+                            {p.nom}
+                          </Typography>
+                          <Typography
+                            sx={{ color: '#10B981', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}
+                          >
+                            {Number(p.prix_vente).toFixed(2)} DT
+                          </Typography>
+                        </Box>
                       </Button>
                     </Grid>
                   ))}
@@ -382,13 +410,42 @@ function VuePDV() {
                             onClick={() => ajouterAuPanier(s, { isService: true })}
                             fullWidth
                             sx={{ 
-                              height: 64,
-                              flexDirection: 'column',
-                              fontSize: '0.75rem'
+                              height: 76,
+                              p: 1,
+                              textTransform: 'none'
                             }}
                           >
-                            <span style={{ textAlign: 'center', fontWeight: 'bold' }}>{s.nom}</span>
-                            <span style={{ color: '#10B981' }}>{Number(s.prix_vente).toFixed(2)} DT</span>
+                            <Box sx={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 0.5,
+                              width: '100%',
+                              height: '100%'
+                            }}>
+                              <Typography
+                                sx={{
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  fontSize: '0.8rem',
+                                  lineHeight: 1.1,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  display: '-webkit-box',
+                                  WebkitBoxOrient: 'vertical',
+                                  WebkitLineClamp: 2,
+                                  maxWidth: '100%'
+                                }}
+                              >
+                                {s.nom}
+                              </Typography>
+                              <Typography
+                                sx={{ color: '#10B981', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}
+                              >
+                                {Number(s.prix_vente).toFixed(2)} DT
+                              </Typography>
+                            </Box>
                           </Button>
                         </Grid>
                       ))
