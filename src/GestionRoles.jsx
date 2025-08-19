@@ -8,7 +8,7 @@ function GestionRoles() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async () => {   // Fonction pour récupérer les utilisateurs
     try {
       setLoading(true);
       // 1) Essayer de récupérer via la RPC sécurisée si disponible
