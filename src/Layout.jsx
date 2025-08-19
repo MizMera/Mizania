@@ -31,7 +31,11 @@ import {
   Logout,
   Menu as MenuIcon,
   Search,
-  NotificationsNone
+  NotificationsNone,
+  AccountBalanceWallet,
+  MoneyOff,
+  SwapHoriz,
+  AdminPanelSettings
 } from '@mui/icons-material';
 import GroupIcon from '@mui/icons-material/Group';
 
@@ -45,11 +49,11 @@ const menuItems = [
   { text: 'Inventaire', path: '/', Icon: InventoryIcon },
   { text: 'Point de Vente', path: '/pdv', Icon: POSIcon },
   { text: 'Réparations', path: '/reparations', Icon: RepairIcon },
-  { text: 'Gestion Encaisse', path: '/gestion-encaisse', Icon: POSIcon },
-  { text: 'Dépenses', path: '/depenses', Icon: RepairIcon },
-  { text: 'Transferts', path: '/transferts', Icon: POSIcon },
+  { text: 'Gestion Encaisse', path: '/gestion-encaisse', Icon: AccountBalanceWallet },
+  { text: 'Dépenses', path: '/depenses', Icon: MoneyOff },
+  { text: 'Transferts', path: '/transferts', Icon: SwapHoriz },
   { text: 'Clients', path: '/clients', Icon: GroupIcon },
-  { text: 'Administration', path: '/admin', Icon: AccountCircle },
+  { text: 'Administration', path: '/admin', Icon: AdminPanelSettings },
 ];
 
 function Layout() {

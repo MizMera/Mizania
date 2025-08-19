@@ -34,6 +34,15 @@ function ClotureCaisse() {
     return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
   };
 
+  // Remove useless counts like "1 ligne(s), 1 article(s)" from POS descriptions when displaying
+  const cleanDescription = (desc = '') => {
+    try {
+      return desc.replace(/\s\|\s\d+\sligne\(s\),\s\d+\sarticle\(s\)\s\|\s/gi, ' | ');
+    } catch {
+      return desc;
+    }
+  };
+
   const load = async () => {
     try {
       setLoading(true);
@@ -298,7 +307,7 @@ function ClotureCaisse() {
                         <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ticket}</TableCell>
                         <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{items}</TableCell>
                         <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.description || '—'}
+                          {cleanDescription(r.description || '—')}
                         </TableCell>
                         <TableCell align="right">{montant.toFixed(2)}</TableCell>
                         <TableCell align="right">{cout.toFixed(2)}</TableCell>

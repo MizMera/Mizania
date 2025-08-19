@@ -69,6 +69,16 @@ function GestionEncaisse() {
     return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
   };
 
+  // Remove useless counts like "1 ligne(s), 1 article(s)" from POS descriptions when displaying
+  const cleanDescription = (desc = '') => {
+    try {
+      // Remove only the counts block: " | N ligne(s), M article(s) | "
+      return desc.replace(/\s\|\s\d+\sligne\(s\),\s\d+\sarticle\(s\)\s\|\s/gi, ' | ');
+    } catch {
+      return desc;
+    }
+  };
+
   const load = async () => {
     try {
       setLoading(true);
@@ -600,6 +610,7 @@ function GestionEncaisse() {
                 const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
                 const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
                 const items = itemsMatch ? itemsMatch[1] : '—';
+                const shownDesc = cleanDescription(r.description || '');
                 
                 return (
                   <TableRow key={r.id} hover sx={{ bgcolor: isEditing ? 'rgba(255, 193, 7, 0.1)' : 'inherit' }}>
@@ -651,7 +662,7 @@ function GestionEncaisse() {
                           maxRows={2}
                         />
                       ) : (
-                        r.description || '—'
+                        shownDesc || '—'
                       )}
                     </TableCell>
                     <TableCell align="right">
