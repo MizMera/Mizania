@@ -100,6 +100,9 @@ function Layout() {
     setSearchOpen(false);
   }, [location.pathname]);
 
+  // Cleanup debounce on unmount to avoid dangling timers
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAnchorEl(null);
@@ -319,11 +322,16 @@ function Layout() {
           {/* Search Results Menu */}
           <Menu
             anchorEl={searchAnchorRef.current}
-            open={searchOpen}
+            open={Boolean(searchOpen && searchAnchorRef.current)}
             onClose={() => setSearchOpen(false)}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
             transformOrigin={{ vertical: 'top', horizontal: 'left' }}
             PaperProps={{ sx: { minWidth: 420, maxWidth: 520 } }}
+            // Avoid focus trap conflicts with the input being the anchor
+            disableAutoFocus
+            disableEnforceFocus
+            disableRestoreFocus
+            MenuListProps={{ autoFocusItem: false }}
           >
             <Box sx={{ px: 1, py: 0.5 }}>
               {searchLoading && (
