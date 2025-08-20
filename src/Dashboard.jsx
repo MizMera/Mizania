@@ -107,7 +107,7 @@ function Dashboard() {
     doc.text('Tableau de Bord', 14, 22);
     doc.setFontSize(12);
     doc.text(`Date: ${new Date().toLocaleDateString('fr-FR')}`, 14, 32);
-    if (user?.email) doc.text(`Généré par: ${user.email}`, 14, 40);
+    doc.text(`Généré par: ${user.email}`, 14, 40);
 
     // Key metrics
     doc.setFontSize(14);
@@ -207,8 +207,19 @@ function Dashboard() {
         return x.getFullYear() === base.getFullYear() && x.getMonth() === base.getMonth() && x.getDate() === base.getDate();
       };
 
-      // Split by type and date
-      const revenus = tx.filter(t => t.type === 'Revenu');
+      // Detect opening fund/internal entries to exclude from revenue KPIs/charts
+      const isOpeningFund = (t) => {
+        try {
+          const src = String(t?.source || '').toLowerCase();
+          const desc = String(t?.description || '').toLowerCase();
+          return t?.is_internal === true || t?.type === 'Fond' || src.includes('ouverture') || desc.includes('fond de caisse');
+        } catch {
+          return false;
+        }
+      };
+
+      // Split by type and date (exclude opening fund from revenus)
+      const revenus = tx.filter(t => t.type === 'Revenu' && !isOpeningFund(t));
       const depenses = tx.filter(t => t.type === 'Dépense');
 
       const revenusJour = revenus.filter(t => isSameDay(t.created_at, aujourdhui));
@@ -232,7 +243,7 @@ function Dashboard() {
       const panierMoyenJour = ventesJourCount > 0 ? (revenusJourTotal / ventesJourCount) : 0;
 
       // Recent non-internal tx (already excluded), show latest 8
-      const recentTxLocal = tx.slice(0, 8);
+      const recentTxLocal = tx.filter(t => !isOpeningFund(t)).slice(0, 8);
 
       // Seven-day chart from single dataset
       const graphDays = [];

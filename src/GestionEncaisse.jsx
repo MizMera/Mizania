@@ -80,6 +80,21 @@ function GestionEncaisse() {
     }
   };
 
+  // In daily view, strip the Ticket segment from description (e.g., "Ticket 123 | ...")
+  const stripTicketFromDesc = (desc = '') => {
+    try {
+      let s = desc;
+      // Remove the "Ticket ..." segment with optional surrounding pipes/spaces
+      s = s.replace(/(?:^|\s*\|\s*)Ticket\s[^|]+(?=\s*\||$)/gi, '');
+      // Normalize duplicated or dangling separators
+      s = s.replace(/\s*\|\s*\|\s*/g, ' | ');
+      s = s.replace(/^\s*\|\s*|\s*\|\s*$/g, '');
+      return s.trim();
+    } catch {
+      return desc;
+    }
+  };
+
   const load = async () => {
     try {
       setLoading(true);
@@ -696,7 +711,8 @@ function GestionEncaisse() {
                 const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
                 const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
                 const items = itemsMatch ? itemsMatch[1] : '—';
-                const shownDesc = cleanDescription(r.description || '');
+                const baseDesc = cleanDescription(r.description || '');
+                const shownDesc = viewMode === 'daily' ? stripTicketFromDesc(baseDesc) : baseDesc;
                 
                 return (
                   <TableRow key={r.id} hover sx={{ bgcolor: isEditing ? 'rgba(255, 193, 7, 0.1)' : 'inherit' }}>
