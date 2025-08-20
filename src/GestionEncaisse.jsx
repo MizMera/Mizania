@@ -146,6 +146,17 @@ function GestionEncaisse() {
     load();
   }, [viewMode, date, from, to, paymentMode]);
 
+  // Identify opening fund/internal revenue entries
+  const isOpeningFund = (r) => {
+    try {
+      const src = String(r?.source || '').toLowerCase();
+      const desc = String(r?.description || '').toLowerCase();
+      return r?.is_internal === true || src.includes('ouverture') || desc.includes('fond de caisse');
+    } catch {
+      return false;
+    }
+  };
+
   const totals = useMemo(() => {
     // Use wallet if present; fallback to method mapping
     const getWallet = (r) => {
@@ -155,11 +166,12 @@ function GestionEncaisse() {
       return undefined;
     };
 
-    const revenusNonInternal = transactions.filter(r => !r.is_internal);
+    // Exclude opening fund/internal entries from sales/profit
+    const revenusVentes = transactions.filter(r => !isOpeningFund(r));
     const depensesNonInternal = depenses.filter(d => !d.is_internal);
 
-    const total = revenusNonInternal.reduce((s, r) => s + Number(r.montant || 0), 0);
-    const couts = revenusNonInternal.reduce((s, r) => s + Number(r.cout_total || 0), 0);
+    const total = revenusVentes.reduce((s, r) => s + Number(r.montant || 0), 0);
+    const couts = revenusVentes.reduce((s, r) => s + Number(r.cout_total || 0), 0);
     const netVentes = total - couts;
     const totalDepenses = depensesNonInternal.reduce((s, r) => s + Number(r.montant || 0), 0);
 
@@ -380,12 +392,15 @@ function GestionEncaisse() {
         startY: tableStartY,
         head: [['Date/Heure', 'Source', 'Montant (DT)', 'Coût (DT)', 'Profit (DT)']],
         body: transactions.map(r => {
-          const profit = Number(r.montant || 0) - Number(r.cout_total || 0);
+          const internal = isOpeningFund(r);
+          const montant = Number(r.montant || 0);
+          const cout = internal ? 0 : Number(r.cout_total || 0);
+          const profit = internal ? 0 : (montant - cout);
           return [
             fmtDateTime(r.created_at),
             r.source || '-',
-            Number(r.montant).toFixed(2),
-            Number(r.cout_total || 0).toFixed(2),
+            montant.toFixed(2),
+            cout.toFixed(2),
             profit.toFixed(2)
           ];
         }),
@@ -674,9 +689,10 @@ function GestionEncaisse() {
               )}
               {!loading && transactions.map(r => {
                 const isEditing = editingId === r.id;
+                const internalOpening = isOpeningFund(r);
                 const montant = isEditing ? Number(editValues.montant || 0) : Number(r.montant || 0);
-                const cout = isEditing ? Number(editValues.cout_total || 0) : Number(r.cout_total || 0);
-                const marge = montant - cout;
+                const cout = internalOpening ? 0 : (isEditing ? Number(editValues.cout_total || 0) : Number(r.cout_total || 0));
+                const marge = internalOpening ? 0 : (montant - cout);
                 const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
                 const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
                 const items = itemsMatch ? itemsMatch[1] : '—';
@@ -752,10 +768,11 @@ function GestionEncaisse() {
                       {isEditing ? (
                         <TextField
                           type="number"
-                          value={editValues.cout_total || ''}
+                          value={internalOpening ? 0 : (editValues.cout_total || '')}
                           onChange={(e) => setEditValues({...editValues, cout_total: e.target.value})}
                           size="small"
                           inputProps={{ step: '0.01' }}
+                          disabled={internalOpening}
                         />
                       ) : (
                         cout.toFixed(2)
@@ -787,7 +804,7 @@ function GestionEncaisse() {
                             <IconButton 
                               size="small" 
                               onClick={() => startEdit(r)}
-                              disabled={editingId !== null}
+                              disabled={editingId !== null || internalOpening}
                             >
                               <Edit fontSize="small" />
                             </IconButton>

@@ -41,29 +41,52 @@ function VuePDV() {
   const [customService, setCustomService] = useState({ nom: '', prix: '', quantite: 1 });
 
   // Presets services (ARRAY) si table 'services' absente
-  const defaultServicePresets = useMemo(() => ([
-    {
-      id: 'svc-print-bw-a4',
-      nom: 'Impression A4 N&B (page)',
-      prix_vente: 0.10,
-      prix_achat: 0,
-      type_item: 'service'
-    },
-    {
-      id: 'svc-print-color-a4',
-      nom: 'Impression A4 Couleur (page)',
-      prix_vente: 0.5,
-      prix_achat: 0,
-      type_item: 'service'
-    },
-    {
-      id: 'svc-scan-a4',
-      nom: 'Scan A4 (page)',
-      prix_vente: 0.5,
-      prix_achat: 0,
-      type_item: 'service'
-    }
-  ]), []);
+  const defaultServicePresets = useMemo(() => {
+    const MARGIN_RATE = 0.6; // 60% de marge (profit / prix)
+    const costFromPrice = (price) => Number((price * (1 - MARGIN_RATE)).toFixed(3));
+
+    const bwCopyPrice = 0.10;     // Photocopie N&B
+    const bwPrintPrice = 0.15;    // Tirage N&B
+    const colorPrice = 0.50;      // Couleur (photocopie/tirage)
+
+    return [
+      {
+        id: 'svc-print-bw-a4',
+        nom: 'Impression A4 N&B (page)',
+        prix_vente: bwCopyPrice,
+        prix_achat: costFromPrice(bwCopyPrice), // 0.04 DT coût cible
+        type_item: 'service'
+      },
+      {
+        id: 'svc-print-color-a4',
+        nom: 'Impression A4 Couleur (page)',
+        prix_vente: colorPrice,
+        prix_achat: costFromPrice(colorPrice), // 0.20 DT coût cible
+        type_item: 'service'
+      },
+      {
+        id: 'svc-scan-a4',
+        nom: 'Scan A4 (page)',
+        prix_vente: 0.5,
+        prix_achat: 0,
+        type_item: 'service'
+      },
+      {
+        id: 'svc-Tirage-bw-a4',
+        nom: 'Tirage A4 N&B (page)',
+        prix_vente: bwPrintPrice,
+        prix_achat: costFromPrice(bwPrintPrice), // 0.06 DT coût cible
+        type_item: 'service'
+      },
+      {
+        id: 'svc-Tirage-couleur-a4',
+        nom: 'Tirage A4 Couleur (page)',
+        prix_vente: colorPrice,
+        prix_achat: costFromPrice(colorPrice), // 0.20 DT coût cible
+        type_item: 'service'
+      }
+    ];
+  }, []);
 
   useEffect(() => {
     async function chargerDonnees() {
