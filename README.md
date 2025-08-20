@@ -91,6 +91,20 @@ Schema flexibility:
 ## Credits
 - Built by Khalil Zghida for a custom tech repair business workflow
 
+## Portfolio & Access
+- Repository visibility: Private (do not open-source).
+- Live demo (read-only): https://mizania-topaz.vercel.app
+- Demo credentials: share privately with reviewers only (do not commit to the repo).
+- Suggested assets: add screenshots (redact sensitive data) under `public/screenshots/` and reference them in this README.
+
+## Privacy & Security
+- Secrets are stored in `.env` (already gitignored). Never commit keys.
+- Rotate Supabase keys if they were ever pushed publicly.
+- Supabase Auth: disable public signups; use invitations only.
+- Database: enable RLS and restrict access to authenticated users; keep ‘internal’ flags for non-revenue entries.
+- Deploy: restrict origins via `VITE_ALLOWED_ORIGINS` and emails via `VITE_ALLOWED_EMAILS`/`VITE_ALLOWED_EMAIL_DOMAINS`.
+- License: All rights reserved. This project is proprietary and not open-source.
+
 ## License
 This is a proprietary, closed-source application. All rights reserved © 2025 Khalil Zghida.
 - Use is restricted to the client’s internal business operations.

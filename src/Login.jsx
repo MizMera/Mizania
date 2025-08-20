@@ -18,6 +18,15 @@ function Login() {
       .filter(Boolean);
   }, []);
 
+  // Explicit allowed emails (comma-separated), optional
+  const allowedEmails = useMemo(() => {
+    const raw = import.meta.env.VITE_ALLOWED_EMAILS || '';
+    return raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  }, []);
+
   // Redirect URL: prefer explicit site URL in env, fallback to current origin
   const redirectTo = useMemo(() => {
     return (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, '');
@@ -38,6 +47,35 @@ function Login() {
     return '';
   };
 
+  // Check if email is pre-approved (invitations table or user_profiles.email, or env allowlist)
+  const isEmailApproved = async (val) => {
+    const em = String(val || '').toLowerCase();
+    if (!em) return false;
+    if (allowedEmails.length && allowedEmails.includes(em)) return true;
+
+    // Try invitations table (if exists)
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select('email')
+        .eq('email', em)
+        .limit(1);
+      if (!error && data && data.length > 0) return true;
+    } catch (_) { /* ignore */ }
+
+    // Try user_profiles with email column (if exists)
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('email', em)
+        .limit(1);
+      if (!error && data && data.length > 0) return true;
+    } catch (_) { /* ignore */ }
+
+    return false;
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     const err = validateEmail(email);
@@ -47,8 +85,16 @@ function Login() {
       return;
     }
 
+    // Enforce pre-approval before sending magic link
     try {
       setLoading(true);
+      const approved = await isEmailApproved(email);
+      if (!approved) {
+        toast.error("Adresse non autorisée. Contactez l'administrateur pour être invité.");
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo },
@@ -61,8 +107,8 @@ function Login() {
         toast.error(
           `URL de redirection non autorisée: ${redirectTo}. Ajoutez-la dans Supabase > Authentication > URL Configuration (Site URL ou Additional Redirect URLs).`
         );
-      } else if (/domain/i.test(msg)) {
-        toast.error('Domaine e-mail non autorisé par la politique du projet.');
+      } else if (/signups not allowed|disabled/i.test(msg)) {
+        toast.error("Les inscriptions sont désactivées. Demandez une invitation à l'administrateur.");
       } else {
         toast.error(msg);
       }
@@ -115,7 +161,7 @@ function Login() {
             }}
             onBlur={() => setEmailError(validateEmail(email))}
             error={!!emailError}
-            helperText={emailError || 'Nous vous enverrons un lien sécurisé.'}
+            helperText={emailError || "Seules les adresses invitées par l'administrateur recevront un lien."}
             required
             fullWidth
             size="medium"
