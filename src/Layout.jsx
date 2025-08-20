@@ -463,6 +463,17 @@ function Layout() {
       >
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
           <Outlet />
+          {/* App credit footer */}
+          <Box component="footer" sx={{
+            mt: 4,
+            pt: 2,
+            borderTop: '1px solid rgba(148,163,184,0.12)',
+            textAlign: 'center',
+            color: 'text.secondary',
+            fontSize: '0.8rem'
+          }}>
+            Built by Khalil Zghida • Mizania+
+          </Box>
         </Box>
       </Box>
     </Box>
