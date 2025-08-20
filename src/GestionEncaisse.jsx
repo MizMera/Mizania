@@ -96,7 +96,7 @@ function GestionEncaisse() {
       const startIso = start.toISOString();
       const endIso = end.toISOString();
 
-      // Revenus: include internal to count opening fund in cash movements
+      // Revenus: include everything in the window
       const { data: transData, error: transError } = await supabase
         .from('transactions')
         .select('*')
@@ -147,8 +147,13 @@ function GestionEncaisse() {
   }, [viewMode, date, from, to, paymentMode]);
 
   const totals = useMemo(() => {
-    // Only use explicit wallet for wallet flows
-    const getWallet = (r) => r?.wallet;
+    // Use wallet if present; fallback to method mapping
+    const getWallet = (r) => {
+      if (r?.wallet) return r.wallet;
+      if (r?.method === 'Espèces') return 'Caisse';
+      if (r?.method === 'Carte') return 'Banque';
+      return undefined;
+    };
 
     const revenusNonInternal = transactions.filter(r => !r.is_internal);
     const depensesNonInternal = depenses.filter(d => !d.is_internal);
@@ -160,7 +165,6 @@ function GestionEncaisse() {
 
     const caisseIn = transactions.filter(r => getWallet(r) === 'Caisse').reduce((s, r) => s + Number(r.montant || 0), 0);
     const caisseOut = depenses.filter(d => getWallet(d) === 'Caisse').reduce((s, r) => s + Number(r.montant || 0), 0);
-    // Compute cash theoretical balance from movements (opening fund is recorded as internal cash-in)
     const caisseTheorique = caisseIn - caisseOut;
 
     const netCaisse = netVentes - totalDepenses;
@@ -253,12 +257,11 @@ function GestionEncaisse() {
 
       const { data: existingFunds, error: exErr } = await supabase
         .from('transactions')
-        .select('*')
+        .select('id, montant, source, description, created_at')
         .eq('type', 'Revenu')
-        .eq('is_internal', true)
-        .eq('wallet', 'Caisse')
         .gte('created_at', startIso)
         .lte('created_at', endIso)
+        .or('source.ilike.%ouverture%,description.ilike.%fond de caisse%')
         .order('created_at', { ascending: false });
       if (exErr) throw exErr;
 
@@ -266,7 +269,7 @@ function GestionEncaisse() {
         const existing = existingFunds[0];
         const current = Number(existing.montant || 0);
         if (current === montant) {
-          toast.info('Un fond d\'ouverture est déjà enregistré pour cette date avec le même montant.');
+          toast.info("Un fond d'ouverture est déjà enregistré pour cette date avec le même montant.");
           return;
         }
         const confirmUpdate = window.confirm(`Un fond d'ouverture existe déjà (${current.toFixed(2)} DT). Voulez-vous le mettre à jour à ${montant.toFixed(2)} DT ?`);
@@ -284,20 +287,25 @@ function GestionEncaisse() {
         return;
       }
 
-      // Record opening fund as an internal cash inflow
-      const { error } = await supabase.from('transactions').insert({
+      // Try to record opening fund with extended fields; fallback if columns don't exist
+      const base = {
         type: 'Revenu',
-        wallet: 'Caisse',
-        method: 'Espèces',
-        is_internal: true,
         source: 'Ouverture',
         montant,
         description: `Fond de caisse (ouverture) ${date}`,
         user_id: user?.id || null
+      };
+      const { error: insErr } = await supabase.from('transactions').insert({
+        ...base,
+        wallet: 'Caisse',
+        method: 'Espèces',
+        is_internal: true,
       });
-      if (error) throw error;
+      if (insErr) {
+        const { error: fbErr } = await supabase.from('transactions').insert(base);
+        if (fbErr) throw fbErr;
+      }
       toast.success('Fond de caisse enregistré.');
-      // setFondCaisse('0');
       load();
     } catch (e) {
       toast.error('Erreur enregistrement fond de caisse.');
@@ -401,8 +409,9 @@ function GestionEncaisse() {
   const fondInitial = useMemo(() => {
     try {
       return transactions
-        .filter(r => r?.is_internal && r?.wallet === 'Caisse' && (
-          String(r?.source || '').toLowerCase().includes('ouverture') || /fond de caisse/i.test(String(r?.description || ''))
+        .filter(r => (
+          String(r?.source || '').toLowerCase().includes('ouverture') ||
+          /fond de caisse/i.test(String(r?.description || ''))
         ))
         .reduce((s, r) => s + Number(r.montant || 0), 0);
     } catch {
@@ -472,6 +481,9 @@ function GestionEncaisse() {
                   onChange={(e) => setFondCaisse(e.target.value)} 
                   size="small"
                 />
+                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                  Fond existant ce jour: {fondInitial.toFixed(2)} DT
+                </Typography>
               </>
             ) : (
               <>
