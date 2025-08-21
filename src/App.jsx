@@ -119,16 +119,16 @@ function App() {
         produit.nom,
         produit.sku || '—',
         produit.quantite_stock.toString(),
-        `${pa.toFixed(2)} €`,
-        `${pv.toFixed(2)} €`,
-        `${marge.toFixed(2)} €`,
+        `${pa.toFixed(2)} DT`,
+        `${pv.toFixed(2)} DT`,
+        `${marge.toFixed(2)} DT`,
         produit.type_article
       ];
     });
     
     // Generate table
     autoTable(doc, {
-      head: [['Nom', 'SKU', 'Stock', 'Prix Achat', 'Prix Vente', 'Marge', 'Type']],
+      head: [['Nom', 'SKU', 'Stock', 'Prix Achat (DT)', 'Prix Vente (DT)', 'Marge (DT)', 'Type']],
       body: tableData,
       startY: 50,
       theme: 'grid',
@@ -167,8 +167,8 @@ function App() {
             produit.nom || '',
             produit.sku || '-',
             produit.quantite_stock?.toString() || '0',
-            (produit.prix_achat || 0).toString() + ' €',
-            (produit.prix_vente || 0).toString() + ' €',
+            (produit.prix_achat || 0).toString() + ' DT',
+            (produit.prix_vente || 0).toString() + ' DT',
             produit.type_article || ''
           ]);
           
@@ -176,7 +176,7 @@ function App() {
           
           // Create table
           autoTable(doc, {
-            head: [['Nom', 'SKU', 'Stock', 'Prix Achat', 'Prix Vente', 'Type']],
+            head: [['Nom', 'SKU', 'Stock', 'Prix Achat (DT)', 'Prix Vente (DT)', 'Type']],
             body: tableData,
             startY: 45,
             styles: { fontSize: 8 }
@@ -212,8 +212,8 @@ function App() {
           doc.text(produit.nom || '', 14, yPosition);
           doc.text(produit.sku || '-', 80, yPosition);
           doc.text(produit.quantite_stock?.toString() || '0', 120, yPosition);
-          doc.text((produit.prix_achat || 0).toString() + ' €', 140, yPosition);
-          doc.text((produit.prix_vente || 0).toString() + ' €', 170, yPosition);
+          doc.text((produit.prix_achat || 0).toString() + ' DT', 140, yPosition);
+          doc.text((produit.prix_vente || 0).toString() + ' DT', 170, yPosition);
           
           yPosition += 8;
         });
@@ -317,9 +317,9 @@ function App() {
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Nom</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>SKU</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Stock</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Prix d'achat (€)</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Prix de Vente (€)</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Marge (€)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Prix d'achat (DT)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Prix de Vente (DT)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Marge (DT)</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper', display: { xs: 'none', sm: 'table-cell' } }}>Type</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.paper' }}>Actions</TableCell>
                       </TableRow>
@@ -385,7 +385,7 @@ function App() {
                                   sx={{ minWidth: 100 }}
                                 />
                               ) : (
-                                `${pa.toFixed(2)} €`
+                                `${pa.toFixed(2)} DT`
                               )}
                             </TableCell>
                             <TableCell align="right">
@@ -398,7 +398,7 @@ function App() {
                                   sx={{ minWidth: 100 }}
                                 />
                               ) : (
-                                `${pv.toFixed(2)} €`
+                                `${pv.toFixed(2)} DT`
                               )}
                             </TableCell>
                             <TableCell align="right" sx={{ 
@@ -406,7 +406,7 @@ function App() {
                               color: marge > 0 ? '#22C55E' : '#EF4444',
                               fontWeight: 'bold'
                             }}>
-                              {marge.toFixed(2)} €
+                              {marge.toFixed(2)} DT
                             </TableCell>
                             <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
                               {isEditing ? (

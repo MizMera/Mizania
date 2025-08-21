@@ -461,11 +461,11 @@ function Layout() {
           overflowX: 'hidden'
         }}  
       >
-        <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', minHeight: 'inherit' }}>
           <Outlet />
           {/* App credit footer */}
           <Box component="footer" sx={{
-            mt: 4,
+            mt: 'auto',
             pt: 2,
             borderTop: '1px solid rgba(148,163,184,0.12)',
             textAlign: 'center',
