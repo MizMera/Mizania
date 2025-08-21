@@ -48,16 +48,10 @@ function Login() {
     return '';
   };
 
-  // Check if email is pre-approved (invitations table or user_profiles.email, or env allowlist)
+  // Check if email is pre-approved (DB only)
   const isEmailApproved = async (val) => {
     const em = String(val || '').trim().toLowerCase();
     if (!em) return false;
-    if (allowedEmails.length && allowedEmails.includes(em)) return true;
-    // Domain allowlist also counts as approved
-    if (allowedDomains.length) {
-      const domain = em.split('@')[1];
-      if (domain && allowedDomains.includes(domain)) return true;
-    }
 
     // Try invitations table (if exists)
     try {
