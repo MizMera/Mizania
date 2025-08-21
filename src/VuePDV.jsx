@@ -61,7 +61,7 @@ function VuePDV() {
         id: 'svc-print-color-a4',
         nom: 'Impression A4 Couleur (page)',
         prix_vente: colorPrice,
-        prix_achat: costFromPrice(colorPrice), // 0.20 DT coût cible
+        prix_achat: costFromPrice(colorPrice), //// 0.20 DT coût cible
         type_item: 'service'
       },
       {
