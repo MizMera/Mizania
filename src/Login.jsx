@@ -33,13 +33,14 @@ function Login() {
   }, []);
 
   const validateEmail = (val) => {
+    const v = String(val ?? '').trim().toLowerCase();
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!re.test(String(val).toLowerCase())) {
+    if (!re.test(v)) {
       return 'Adresse e-mail invalide';
     }
     // Domain allowlist (client-side precheck for better UX)
     if (allowedDomains.length) {
-      const domain = String(val.split('@')[1] || '').toLowerCase();
+      const domain = String(v.split('@')[1] || '').toLowerCase();
       if (!allowedDomains.includes(domain)) {
         return `Domaine non autorisé. Autorisés: ${allowedDomains.join(', ')}`;
       }
@@ -49,9 +50,14 @@ function Login() {
 
   // Check if email is pre-approved (invitations table or user_profiles.email, or env allowlist)
   const isEmailApproved = async (val) => {
-    const em = String(val || '').toLowerCase();
+    const em = String(val || '').trim().toLowerCase();
     if (!em) return false;
     if (allowedEmails.length && allowedEmails.includes(em)) return true;
+    // Domain allowlist also counts as approved
+    if (allowedDomains.length) {
+      const domain = em.split('@')[1];
+      if (domain && allowedDomains.includes(domain)) return true;
+    }
 
     // Try invitations table (if exists)
     try {

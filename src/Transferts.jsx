@@ -387,55 +387,50 @@ function Transferts() {
           <Paper sx={{ p: { xs: 2, sm: 3 } }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Nouveau Transfert</Typography>
             <form onSubmit={submitTransfer}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} sm={6} md>
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>De</InputLabel>
-                    <Select label="De" value={fromWallet} onChange={(e) => setFromWallet(e.target.value)}>
-                      {WALLET_OPTIONS.map(w => <MenuItem key={w} value={w}>{w}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item sx={{ display: { xs: 'none', sm: 'block' } }}>
-                  <SwapHoriz />
-                </Grid>
-                <Grid item xs={12} sm={6} md>
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Vers</InputLabel>
-                    <Select label="Vers" value={toWallet} onChange={(e) => setToWallet(e.target.value)}>
-                      {WALLET_OPTIONS.map(w => <MenuItem key={w} value={w}>{w}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md>
+              <Stack spacing={2}>
+                <FormControl fullWidth size="medium">
+                  <InputLabel>De</InputLabel>
+                  <Select label="De" value={fromWallet} onChange={(e) => setFromWallet(e.target.value)}>
+                    {WALLET_OPTIONS.map(w => <MenuItem key={w} value={w}>{w}</MenuItem>)}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth size="medium">
+                  <InputLabel>Vers</InputLabel>
+                  <Select label="Vers" value={toWallet} onChange={(e) => setToWallet(e.target.value)}>
+                    {WALLET_OPTIONS.map(w => <MenuItem key={w} value={w}>{w}</MenuItem>)}
+                  </Select>
+                </FormControl>
+
                 <TextField
-                    label="Montant (DT)"
-                    type="text"
-                    required
-                    size="small"
-                    fullWidth
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
-                    inputProps={{ inputMode: 'decimal' }}
-                    helperText={availableBalance !== null ? `Solde: ${availableBalance.toFixed(2)} DT` : ''}
-                    error={availableBalance !== null && Number.isFinite(amountNumber) && amountNumber > (availableBalance + 1e-6)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md>
-                  <TextField
-                    label="Description"
-                    size="small"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} md="auto">
-                  <Button type="submit" variant="contained" startIcon={<Send />} disabled={!canSubmit || loading} fullWidth>
-                    Transférer
-                  </Button>
-                </Grid>
-              </Grid>
+                  label="Montant (DT)"
+                  type="text"
+                  required
+                  size="medium"
+                  fullWidth
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  inputProps={{ inputMode: 'decimal' }}
+                  helperText={availableBalance !== null ? `Solde: ${availableBalance.toFixed(2)} DT` : ''}
+                  error={availableBalance !== null && Number.isFinite(amountNumber) && amountNumber > (availableBalance + 1e-6)}
+                />
+
+                <TextField
+                  label="Description"
+                  size="medium"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  maxRows={8}
+                  placeholder="Motif du transfert..."
+                />
+
+                <Button type="submit" variant="contained" startIcon={<Send />} disabled={!canSubmit || loading} fullWidth>
+                  Transférer
+                </Button>
+              </Stack>
             </form>
           </Paper>
         </Grid>

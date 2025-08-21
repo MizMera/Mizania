@@ -343,14 +343,62 @@ function GestionEncaisse() {
   const enregistrerCloture = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('transactions').insert({
+
+      // End-of-day timestamp
+      const end = new Date(date + 'T23:59:59.999');
+      const endIso = end.toISOString();
+      const caisseFinale = Number(totals.caisseTheorique || 0);
+
+      // Desired fund to keep in Caisse for tomorrow (leave this amount, transfer the rest)
+      const targetKeepRaw = parseFloat(fondCaisse || '0');
+      const targetKeep = Number.isFinite(targetKeepRaw) && targetKeepRaw >= 0 ? +targetKeepRaw.toFixed(2) : 0;
+
+      // 1) Save a closure marker (traceability)
+      const { error: clotErr } = await supabase.from('transactions').insert({
         type: 'Cloture',
         source: 'Caisse',
-        montant: totals.caisseTheorique,
-        description: `Clôture du ${date} | Net: ${totals.netCaisse.toFixed(2)} DT`,
-        user_id: user?.id || null
+        montant: caisseFinale,
+        description: `Clôture du ${date} | Net: ${totals.netCaisse.toFixed(2)} DT | Fond conservé: ${targetKeep.toFixed(2)} DT`,
+        user_id: user?.id || null,
+        created_at: endIso,
+        is_internal: true
       });
-      toast.success('Clôture enregistrée.');
+      if (clotErr) throw clotErr;
+
+      // 2) Transfer only the excess above the desired fund from Caisse -> Coffre
+      const toTransfer = +(caisseFinale - targetKeep).toFixed(2);
+      if (toTransfer > 0.009) {
+        const outCaisse = {
+          type: 'Dépense',
+          source: 'Cloture',
+          montant: toTransfer,
+          description: `Clôture: transfert de l'excédent vers Coffre (${date})`,
+          wallet: 'Caisse',
+          method: 'Espèces',
+          is_internal: true,
+          user_id: user?.id || null,
+          created_at: endIso,
+        };
+        const inCoffre = {
+          type: 'Revenu',
+          source: 'Cloture',
+          montant: toTransfer,
+          description: `Clôture: excédent reçu depuis Caisse (${date})`,
+          wallet: 'Coffre',
+          method: 'Espèces',
+          is_internal: true,
+          user_id: user?.id || null,
+          created_at: endIso,
+        };
+        const { error: trErr } = await supabase.from('transactions').insert([outCaisse, inCoffre]);
+        if (trErr) throw trErr;
+      } else if (caisseFinale + 0.009 < targetKeep) {
+        toast.info(`Caisse (${caisseFinale.toFixed(2)} DT) < fond souhaité (${targetKeep.toFixed(2)} DT). Aucun transfert effectué. Complétez demain.`);
+      }
+
+      const kept = Math.max(0, Math.min(caisseFinale, targetKeep));
+      toast.success(`Clôture enregistrée. Transféré: ${Math.max(0, toTransfer).toFixed(2)} DT | Fond gardé en caisse: ${kept.toFixed(2)} DT.`);
+      load();
     } catch (e) {
       toast.error('Erreur enregistrement de la clôture.');
       console.error(e);
@@ -670,17 +718,15 @@ function GestionEncaisse() {
         
         {/* Use TableContainer for mobile scroll */}
         <TableContainer sx={{ maxHeight: { xs: 360, md: 540 }, overflowX: 'auto' }}>
-          <Table size="small" stickyHeader sx={{ minWidth: viewMode === 'daily' ? 1000 : 900 }}>
+          <Table size="small" stickyHeader sx={{ minWidth: 900 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 'bold', width: '6%' }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>Date/Heure</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '12%' }}>Ticket</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '12%' }}>Source</TableCell>
-                {viewMode === 'daily' && (
-                  <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>Articles</TableCell>
-                )}
-                <TableCell sx={{ fontWeight: 'bold', width: viewMode === 'daily' ? '15%' : '25%' }}>Description</TableCell>
+                {/* Articles column removed in daily mode to avoid duplication */}
+                <TableCell sx={{ fontWeight: 'bold', width: viewMode === 'daily' ? '35%' : '25%' }}>Description</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold', width: '8%' }}>Montant (DT)</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold', width: '8%' }}>Coût (DT)</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 'bold', width: '8%' }}>Marge (DT)</TableCell>
@@ -690,14 +736,14 @@ function GestionEncaisse() {
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={viewMode === 'daily' ? 10 : 9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     Chargement...
                   </TableCell>
                 </TableRow>
               )}
               {!loading && transactions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={viewMode === 'daily' ? 10 : 9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     Aucune transaction trouvée
                   </TableCell>
                 </TableRow>
@@ -709,8 +755,6 @@ function GestionEncaisse() {
                 const cout = internalOpening ? 0 : (isEditing ? Number(editValues.cout_total || 0) : Number(r.cout_total || 0));
                 const marge = internalOpening ? 0 : (montant - cout);
                 const ticket = (r.description || '').match(/Ticket\s([^|]+)/)?.[1] || '—';
-                const itemsMatch = (r.description || '').match(/Articles:\s([^|]+)/);
-                const items = itemsMatch ? itemsMatch[1] : '—';
                 const baseDesc = cleanDescription(r.description || '');
                 const shownDesc = viewMode === 'daily' ? stripTicketFromDesc(baseDesc) : baseDesc;
                 
@@ -738,16 +782,7 @@ function GestionEncaisse() {
                         r.source || '—'
                       )}
                     </TableCell>
-                    {viewMode === 'daily' && (
-                      <TableCell sx={{ 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis', 
-                        whiteSpace: 'nowrap',
-                        fontSize: '0.8rem'
-                      }}>
-                        {items}
-                      </TableCell>
-                    )}
+                    {/* Articles column removed */}
                     <TableCell sx={{ 
                       overflow: 'hidden', 
                       textOverflow: 'ellipsis', 
@@ -843,7 +878,7 @@ function GestionEncaisse() {
               })}
               {transactions.length > 0 && (
                 <TableRow sx={{ bgcolor: 'rgba(99, 102, 241, 0.05)' }}>
-                  <TableCell colSpan={viewMode === 'daily' ? 6 : 5} align="right" sx={{ fontWeight: 700 }}>
+                  <TableCell colSpan={5} align="right" sx={{ fontWeight: 700 }}>
                     Totaux
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>{totals.total.toFixed(2)}</TableCell>
