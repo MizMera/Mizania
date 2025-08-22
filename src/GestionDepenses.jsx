@@ -16,6 +16,7 @@ import {
   Stack,
   Grid,
   Card,
+  CardContent,
   IconButton,
   Dialog,
   DialogTitle,
@@ -58,6 +59,9 @@ function GestionDepenses() {
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // Wallet filter
+  const [walletFilter, setWalletFilter] = useState('Tous');
+
   // Add new expense form
   const [showAddForm, setShowAddForm] = useState(false);
   const [newExpense, setNewExpense] = useState({
@@ -74,6 +78,9 @@ function GestionDepenses() {
   // Delete functionality
   const [deleteDialog, setDeleteDialog] = useState({ open: false, expense: null });
 
+  // Postal card balance
+  const [cartePostaleBalance, setCartePostaleBalance] = useState(null);
+
   // Categories for expenses
   const categories = [
     'Général',
@@ -84,6 +91,7 @@ function GestionDepenses() {
     'Charges',
     'Maintenance',
     'Louer',
+    'Déduction Carte Postale - Services clients',
     'Autres'
   ];
   const walletOptions = ['Caisse', 'Banque', 'Coffre', 'Carte Postal', 'Carte Banker'];
@@ -95,7 +103,7 @@ function GestionDepenses() {
       const startDate = new Date(dateFrom + 'T00:00:00').toISOString();
       const endDate = new Date(dateTo + 'T23:59:59').toISOString();
 
-      // Try to exclude internal transfers when column exists
+      // Try to exclude internal transfers when column exists, but include postal card deductions
       let base = supabase
         .from('transactions')
         .select('*')
@@ -104,7 +112,8 @@ function GestionDepenses() {
         .lte('created_at', endDate)
         .order('created_at', { ascending: false });
 
-      let { data, error } = await base.neq('is_internal', true);
+      // Include postal card deductions even if they are marked as internal
+      let { data, error } = await base.or('is_internal.is.null,is_internal.eq.false,and(is_internal.eq.true,wallet.eq.Carte Postal)');
       if (error && String(error.message || '').toLowerCase().includes('is_internal')) {
         const retry = await base; // without neq filter
         data = retry.data; error = retry.error;
@@ -112,8 +121,13 @@ function GestionDepenses() {
 
       if (error) throw error;
 
-      // Fallback filter: remove transfers if schema lacks is_internal
-      const filtered = (data || []).filter(d => !/transfert/i.test(d.description || '') && !/transfert/i.test(d.source || ''));
+      // Fallback filter: remove transfers if schema lacks is_internal, but keep postal card deductions
+      const filtered = (data || []).filter(d => {
+        const isTransfer = /transfert/i.test(d.description || '') && !/carte.postale/i.test(d.description || '');
+        const isTransferSource = /transfert/i.test(d.source || '');
+        const isPostalCardDeduction = (d.wallet === 'Carte Postal' || /carte.postale/i.test(d.description || ''));
+        return !isTransfer && !isTransferSource || isPostalCardDeduction;
+      });
       setDepenses(filtered);
     } catch (e) {
       console.error(e);
@@ -125,17 +139,47 @@ function GestionDepenses() {
 
   useEffect(() => { loadDepenses(); }, [dateFrom, dateTo]);
 
-  // Calculate totals
+  const loadCartePostaleBalance = async () => {
+    try {
+      const { data } = await supabase
+        .from('transactions')
+        .select('type, montant, wallet')
+        .eq('wallet', 'Carte Postal');
+      
+      if (data) {
+        let balance = 0;
+        data.forEach(t => {
+          const amount = Number(t.montant) || 0;
+          if (t.type === 'Revenu') balance += amount;
+          else if (t.type === 'Dépense') balance -= amount;
+        });
+        setCartePostaleBalance(balance);
+      }
+    } catch (error) {
+      console.warn('Impossible de charger le solde Carte Postale:', error.message);
+    }
+  };
+
+  useEffect(() => { 
+    loadDepenses(); 
+    loadCartePostaleBalance();
+  }, [dateFrom, dateTo]);
+
+  // Calculate totals with wallet filter
   const totals = useMemo(() => {
-    const total = depenses.reduce((sum, d) => sum + Number(d.montant || 0), 0);
+    const filteredDepenses = walletFilter === 'Tous' 
+      ? depenses 
+      : depenses.filter(d => (d.wallet || 'Caisse') === walletFilter);
+    
+    const total = filteredDepenses.reduce((sum, d) => sum + Number(d.montant || 0), 0);
     const byCategory = categories.reduce((acc, cat) => {
-      acc[cat] = depenses
+      acc[cat] = filteredDepenses
         .filter(d => (d.source || 'Général') === cat)
         .reduce((sum, d) => sum + Number(d.montant || 0), 0);
       return acc;
     }, {});
-    return { total, byCategory };
-  }, [depenses]);
+    return { total, byCategory, filteredDepenses };
+  }, [depenses, walletFilter]);
 
   // Add new expense
   const handleAddExpense = async (e) => {
@@ -160,6 +204,10 @@ function GestionDepenses() {
       setNewExpense({ montant: '', description: '', categorie: 'Général', wallet: 'Caisse' });
       setShowAddForm(false);
       loadDepenses();
+      // Refresh postal card balance if expense was from Carte Postal
+      if (newExpense.wallet === 'Carte Postal') {
+        loadCartePostaleBalance();
+      }
     } catch (e) {
       console.error(e);
       toast.error("Erreur lors de l'ajout de la dépense");
@@ -295,6 +343,58 @@ function GestionDepenses() {
         </Stack>
       </Box>
 
+      {/* Postal Card Balance & Quick Add */}
+      {cartePostaleBalance !== null && (
+        <Card sx={{ mx: { xs: 2, sm: 3 }, border: cartePostaleBalance < 10 ? '2px solid #f97316' : '1px solid #e2e8f0' }}>
+          <CardContent sx={{ py: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Solde Carte Postale</Typography>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700,
+                      color: cartePostaleBalance < 10 ? '#f97316' : cartePostaleBalance < 25 ? '#f59e0b' : '#10b981'
+                    }}
+                  >
+                    {cartePostaleBalance.toFixed(2)} DT
+                  </Typography>
+                </Box>
+                {cartePostaleBalance < 10 && (
+                  <Chip 
+                    label="Solde faible" 
+                    color="warning" 
+                    size="small" 
+                    variant="filled"
+                  />
+                )}
+              </Stack>
+              <Stack direction="row" spacing={1}>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => {
+                    setNewExpense({ montant: '', description: '', categorie: 'Général', wallet: 'Carte Postal' });
+                    setShowAddForm(true);
+                  }}
+                  startIcon={<Receipt />}
+                >
+                  Dépense Carte Postale
+                </Button>
+                <Button 
+                  variant={walletFilter === 'Carte Postal' ? 'contained' : 'outlined'} 
+                  size="small"
+                  onClick={() => setWalletFilter(walletFilter === 'Carte Postal' ? 'Tous' : 'Carte Postal')}
+                >
+                  {walletFilter === 'Carte Postal' ? 'Voir Tous' : 'Voir Carte Postale'}
+                </Button>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Add Form */}
       {showAddForm && (
         <Paper sx={{ p: 2, mx: { xs: 2, sm: 3 } }}>
@@ -329,6 +429,13 @@ function GestionDepenses() {
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ md: 'center' }}>
           <TextField type="date" label="Du" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
           <TextField type="date" label="Au" value={dateTo} onChange={(e) => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} size="small" />
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Portefeuille</InputLabel>
+            <Select value={walletFilter} onChange={(e) => setWalletFilter(e.target.value)} label="Portefeuille">
+              <MenuItem value="Tous">Tous</MenuItem>
+              {walletOptions.map(w => (<MenuItem key={w} value={w}>{w}</MenuItem>))}
+            </Select>
+          </FormControl>
           <Button variant="contained" onClick={loadDepenses} startIcon={<Refresh />} size="small">Actualiser</Button>
           <Button variant="outlined" startIcon={<PictureAsPdf />} onClick={generatePDF} size="small">Export PDF</Button>
         </Stack>
@@ -348,14 +455,14 @@ function GestionDepenses() {
             <Card sx={{ p: 2, textAlign: 'center' }}>
               <Receipt sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
               <Typography variant="body2" color="text.secondary">Nombre de Dépenses</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{depenses.length}</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>{totals.filteredDepenses.length}</Typography>
             </Card>
           </Grid>
           <Grid item xs={12} md={4}>
             <Card sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">Moyenne par Dépense</Typography>
                 <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                {depenses.length > 0 ? (totals.total / depenses.length).toFixed(2) : '0.00'} DT
+                {totals.filteredDepenses.length > 0 ? (totals.total / totals.filteredDepenses.length).toFixed(2) : '0.00'} DT
               </Typography>
             </Card>
           </Grid>
@@ -377,7 +484,7 @@ function GestionDepenses() {
       {/* Table */}
       <Paper sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', mx: { xs: 2, sm: 3 } }}>
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Typography variant="h6">Liste des Dépenses ({depenses.length}){editingId && (<Chip label="Mode édition" color="warning" size="small" sx={{ ml: 2 }} />)}</Typography>
+          <Typography variant="h6">Liste des Dépenses ({totals.filteredDepenses.length}){editingId && (<Chip label="Mode édition" color="warning" size="small" sx={{ ml: 2 }} />)}</Typography>
         </Box>
         {/* Use TableContainer for better mobile scrolling */}
         <TableContainer sx={{ maxHeight: { xs: 360, md: 540 }, overflowX: 'auto' }}>
@@ -399,15 +506,27 @@ function GestionDepenses() {
                   <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Chargement...</TableCell>
                 </TableRow>
               )}
-              {!loading && depenses.length === 0 && (
+              {!loading && totals.filteredDepenses.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>Aucune dépense trouvée</TableCell>
                 </TableRow>
               )}
-              {!loading && depenses.map(expense => {
+              {!loading && totals.filteredDepenses.map(expense => {
                 const isEditing = editingId === expense.id;
+                const isCartePostal = (expense.wallet || 'Caisse') === 'Carte Postal';
                 return (
-                  <TableRow key={expense.id} hover sx={{ bgcolor: isEditing ? 'rgba(255, 193, 7, 0.1)' : 'inherit' }}>
+                  <TableRow 
+                    key={expense.id} 
+                    hover 
+                    sx={{ 
+                      bgcolor: isEditing 
+                        ? 'rgba(255, 193, 7, 0.1)' 
+                        : isCartePostal 
+                          ? 'rgba(6, 182, 212, 0.05)' 
+                          : 'inherit',
+                      borderLeft: isCartePostal ? '3px solid #06B6D4' : 'none'
+                    }}
+                  >
                     <TableCell sx={{ color: 'text.secondary', fontSize: '0.75rem', display: { xs: 'none', sm: 'table-cell' } }}>#{expense.id}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace', fontSize: '0.8rem' }}>{fmtDateTime(expense.created_at)}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
@@ -418,7 +537,12 @@ function GestionDepenses() {
                           </Select>
                         </FormControl>
                       ) : (
-                        <Chip size="small" label={expense.wallet || 'Caisse'} />
+                        <Chip 
+                          size="small" 
+                          label={expense.wallet || 'Caisse'} 
+                          color={isCartePostal ? 'primary' : 'default'}
+                          variant={isCartePostal ? 'filled' : 'outlined'}
+                        />
                       )}
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
@@ -462,7 +586,7 @@ function GestionDepenses() {
                   </TableRow>
                 );
               })}
-              {depenses.length > 0 && (
+              {totals.filteredDepenses.length > 0 && (
                 <TableRow sx={{ bgcolor: 'rgba(244, 67, 54, 0.05)' }}>
                   <TableCell colSpan={4} align="right" sx={{ fontWeight: 700 }}>Total des Dépenses</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, color: 'error.main' }}>{totals.total.toFixed(2)} DT</TableCell>

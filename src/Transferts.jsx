@@ -28,9 +28,10 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Alert
 } from '@mui/material';
-import { SwapHoriz, Send, AccountBalance, Delete } from '@mui/icons-material';
+import { SwapHoriz, Send, AccountBalance, Delete, Edit } from '@mui/icons-material';
 import { PictureAsPdf } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -48,6 +49,14 @@ function Transferts() {
   const [entries, setEntries] = useState([]);
   const [balances, setBalances] = useState(null); // {Caisse: number, Banque: number, Coffre: number} or null if unsupported
   const [deleteDialog, setDeleteDialog] = useState({ open: false, transactionId: null, description: '' });
+  // Manual balance adjustment
+  const [adjustmentDialog, setAdjustmentDialog] = useState({ 
+    open: false, 
+    wallet: '', 
+    currentBalance: 0, 
+    newBalance: '', 
+    reason: '' 
+  });
 
   const fmtDateTime = (value) => {
     const d = new Date(value);
@@ -265,6 +274,86 @@ function Transferts() {
     setDeleteDialog({ open: false, transactionId: null, description: '' });
   };
 
+  const handleAdjustBalance = (wallet) => {
+    const currentBalance = balances ? (balances[wallet] || 0) : 0;
+    setAdjustmentDialog({
+      open: true,
+      wallet,
+      currentBalance,
+      newBalance: currentBalance.toString(),
+      reason: ''
+    });
+  };
+
+  const handleAdjustmentConfirm = async () => {
+    try {
+      setLoading(true);
+      const { wallet, currentBalance, newBalance, reason } = adjustmentDialog;
+      const newBalanceNum = Number(newBalance);
+      
+      if (isNaN(newBalanceNum)) {
+        toast.error('Veuillez saisir un montant valide');
+        return;
+      }
+
+      if (!reason.trim()) {
+        toast.error('Veuillez indiquer la raison de l\'ajustement');
+        return;
+      }
+
+      const difference = newBalanceNum - currentBalance;
+      
+      if (Math.abs(difference) < 0.01) {
+        toast.info('Aucun changement détecté');
+        setAdjustmentDialog({ open: false, wallet: '', currentBalance: 0, newBalance: '', reason: '' });
+        return;
+      }
+
+      // Create adjustment transaction
+      const transactionType = difference > 0 ? 'Revenu' : 'Dépense';
+      const amount = Math.abs(difference);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const payload = {
+        type: transactionType,
+        source: 'Ajustement Manuel',
+        montant: amount,
+        description: `Ajustement manuel de ${wallet}: ${currentBalance.toFixed(2)} DT → ${newBalanceNum.toFixed(2)} DT. Raison: ${reason}`,
+        user_id: user?.id || null,
+        wallet,
+        is_internal: true
+      };
+
+      let { error } = await supabase
+        .from('transactions')
+        .insert(payload);
+
+      if (error && String(error.message || '').toLowerCase().includes('column')) {
+        // Fallback if custom columns not present
+        const { wallet: _, is_internal: __, ...fallbackPayload } = payload;
+        const retry = await supabase.from('transactions').insert(fallbackPayload);
+        error = retry.error;
+      }
+
+      if (error) throw error;
+
+      toast.success(`Balance de ${wallet} ajustée: ${difference > 0 ? '+' : ''}${difference.toFixed(2)} DT`);
+      setAdjustmentDialog({ open: false, wallet: '', currentBalance: 0, newBalance: '', reason: '' });
+      loadBalances();
+      loadTransfers();
+    } catch (e) {
+      console.error(e);
+      toast.error('Erreur lors de l\'ajustement: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdjustmentCancel = () => {
+    setAdjustmentDialog({ open: false, wallet: '', currentBalance: 0, newBalance: '', reason: '' });
+  };
+
   const walletChip = (w) => {
     const map = { Caisse: 'success', Banque: 'info', Coffre: 'warning', 'Carte Postal': 'primary', 'Carte Banker': 'secondary' };
     const color = map[w] || 'default';
@@ -274,22 +363,51 @@ function Transferts() {
   const BalanceCards = () => {
     if (!balances) return null;
     const colorMap = { Caisse: '#22C55E', Banque: '#3B82F6', Coffre: '#F59E0B', 'Carte Postal': '#06B6D4', 'Carte Banker': '#8B5CF6' };
+    const cartePostaleBalance = balances['Carte Postal'] || 0;
+    const isLowBalance = cartePostaleBalance < 10;
+    
     return (
       <Paper sx={{ p: { xs: 2, sm: 3 }, mx: { xs: 2, sm: 3 } }}>
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Soldes Portefeuilles</Typography>
+        {isLowBalance && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Attention: Solde Carte Postale faible ({cartePostaleBalance.toFixed(2)} DT). Pensez à la recharger pour continuer les services d'inscription.
+          </Alert>
+        )}
         <Grid container spacing={2}>
           {Object.entries(balances).map(([w, val]) => (
             <Grid item xs={12} sm={4} key={w}>
-              <Card sx={{ boxShadow: '0 8px 24px rgba(15,23,42,0.08)' }}>
+              <Card sx={{ 
+                boxShadow: '0 8px 24px rgba(15,23,42,0.08)',
+                border: w === 'Carte Postal' && val < 10 ? '2px solid #f97316' : 'none'
+              }}>
                 <CardContent>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <Avatar sx={{ bgcolor: colorMap[w] || 'primary.main', width: 36, height: 36 }}>
-                      <AccountBalance sx={{ fontSize: '1rem' }} />
-                    </Avatar>
-                    <Box>
-                      <Typography color="text.secondary" variant="overline">{w}</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 800 }}>{Number(val).toFixed(2)} DT</Typography>
-                    </Box>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Avatar sx={{ bgcolor: colorMap[w] || 'primary.main', width: 36, height: 36 }}>
+                        <AccountBalance sx={{ fontSize: '1rem' }} />
+                      </Avatar>
+                      <Box>
+                        <Typography color="text.secondary" variant="overline">{w}</Typography>
+                        <Typography 
+                          variant="h5" 
+                          sx={{ 
+                            fontWeight: 800,
+                            color: w === 'Carte Postal' && val < 10 ? '#f97316' : 'inherit'
+                          }}
+                        >
+                          {Number(val).toFixed(2)} DT
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleAdjustBalance(w)}
+                      sx={{ color: 'text.secondary' }}
+                      title="Ajuster le solde"
+                    >
+                      <Edit fontSize="small" />
+                    </IconButton>
                   </Stack>
                 </CardContent>
               </Card>
@@ -354,7 +472,12 @@ function Transferts() {
       {/* Header */}
       <Box sx={{ flexShrink: 0, px: { xs: 2, sm: 3 } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>Transferts de Caisse</Typography>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 800 }}>Transferts de Caisse</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Gérez vos transferts entre portefeuilles et ajustez les soldes si nécessaire
+            </Typography>
+          </Box>
           <Stack direction="row" spacing={1} alignItems="center">
             <TextField
               type="month"
@@ -503,6 +626,59 @@ function Transferts() {
           <Button onClick={handleDeleteCancel}>Annuler</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Balance Adjustment Dialog */}
+      <Dialog open={adjustmentDialog.open} onClose={handleAdjustmentCancel} maxWidth="sm" fullWidth>
+        <DialogTitle>Ajuster le solde - {adjustmentDialog.wallet}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Solde actuel: {adjustmentDialog.currentBalance.toFixed(2)} DT
+              </Typography>
+            </Box>
+            
+            <TextField
+              label="Nouveau solde (DT)"
+              type="number"
+              value={adjustmentDialog.newBalance}
+              onChange={(e) => setAdjustmentDialog(prev => ({ ...prev, newBalance: e.target.value }))}
+              inputProps={{ step: '0.01', min: '0' }}
+              fullWidth
+              helperText={`Différence: ${adjustmentDialog.newBalance ? 
+                (Number(adjustmentDialog.newBalance) - adjustmentDialog.currentBalance).toFixed(2) : '0.00'} DT`}
+            />
+            
+            <TextField
+              label="Raison de l'ajustement"
+              value={adjustmentDialog.reason}
+              onChange={(e) => setAdjustmentDialog(prev => ({ ...prev, reason: e.target.value }))}
+              placeholder="Ex: Correction d'erreur, Ajustement inventaire, etc."
+              multiline
+              rows={3}
+              fullWidth
+              required
+            />
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                Cette action créera une transaction d'ajustement pour corriger le solde. 
+                Assurez-vous que la raison est claire pour les audits.
+              </Typography>
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleAdjustmentCancel}>Annuler</Button>
+          <Button 
+            onClick={handleAdjustmentConfirm} 
+            variant="contained"
+            disabled={!adjustmentDialog.reason.trim() || !adjustmentDialog.newBalance}
+          >
+            Ajuster
           </Button>
         </DialogActions>
       </Dialog>

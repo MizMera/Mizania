@@ -784,10 +784,14 @@ function GestionEncaisse() {
                     </TableCell>
                     {/* Articles column removed */}
                     <TableCell sx={{ 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis', 
-                      whiteSpace: 'nowrap',
-                      fontSize: '0.8rem'
+                      maxWidth: '200px',
+                      minWidth: '150px',
+                      fontSize: '0.8rem',
+                      lineHeight: 1.3,
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
+                      verticalAlign: 'top',
+                      padding: '8px 16px'
                     }}>
                       {isEditing ? (
                         <TextField
@@ -799,7 +803,17 @@ function GestionEncaisse() {
                           maxRows={2}
                         />
                       ) : (
-                        shownDesc || '—'
+                        <Box sx={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          lineHeight: 1.3,
+                          maxHeight: '2.6em' // 2 lines * 1.3 line-height
+                        }}>
+                          {shownDesc || '—'}
+                        </Box>
                       )}
                     </TableCell>
                     <TableCell align="right">
@@ -833,7 +847,34 @@ function GestionEncaisse() {
                       color: marge > 0 ? 'success.main' : (marge < 0 ? 'error.main' : 'inherit'),
                       fontWeight: 'bold'
                     }}>
-                      {marge.toFixed(2)}
+                      {isEditing ? (
+                        <TextField
+                          type="number"
+                          value={marge.toFixed(2)}
+                          size="small"
+                          inputProps={{ step: '0.01' }}
+                          onChange={(e) => {
+                            const newMarge = Number(e.target.value) || 0;
+                            const currentMontant = Number(editValues.montant) || 0;
+                            const newCoutTotal = currentMontant - newMarge;
+                            setEditValues({
+                              ...editValues,
+                              cout_total: Math.max(0, newCoutTotal).toFixed(2)
+                            });
+                          }}
+                          sx={{ 
+                            minWidth: '100px',
+                            '& .MuiInputBase-input': {
+                              color: marge > 0 ? '#2e7d32' : (marge < 0 ? '#d32f2f' : 'inherit'),
+                              fontWeight: 'bold',
+                              textAlign: 'right',
+                              fontSize: '0.875rem'
+                            }
+                          }}
+                        />
+                      ) : (
+                        marge.toFixed(2)
+                      )}
                     </TableCell>
                     <TableCell align="center">
                       {isEditing ? (
