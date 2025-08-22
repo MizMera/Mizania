@@ -14,6 +14,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Client Supabase avec persistance de session et auto-refresh activés
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    }
+  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,

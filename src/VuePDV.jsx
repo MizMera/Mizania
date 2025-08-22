@@ -23,7 +23,12 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Grid,
-  TableContainer
+  TableContainer,
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { Add, Remove, Delete, Print as PrintIcon, ShoppingCartCheckout } from '@mui/icons-material';
 import jsPDF from 'jspdf';
@@ -38,7 +43,8 @@ function VuePDV() {
   const [recherche, setRecherche] = useState('');
   const [onglet, setOnglet] = useState('produits');
   const [modePaiement, setModePaiement] = useState('Espèces');
-  const [customService, setCustomService] = useState({ nom: '', prix: '', quantite: 1 });
+  const [customService, setCustomService] = useState({ nom: '', prix: '', quantite: 1, cout: '', wallet: 'Caisse' });
+  const [cartePostaleBalance, setCartePostaleBalance] = useState(null);
 
   // Presets services (ARRAY) si table 'services' absente
   const defaultServicePresets = useMemo(() => {
@@ -84,6 +90,41 @@ function VuePDV() {
         prix_vente: colorPrice,
         prix_achat: costFromPrice(colorPrice), // 0.20 DT coût cible
         type_item: 'service'
+      },
+      {
+        id: 'svc-inscription-eleve-primaire-direct',
+        nom: 'Inscription élève primaire (paiement direct)',
+        prix_vente: 5.0,
+        prix_achat: 0,
+        type_item: 'service'
+      },
+      {
+        id: 'svc-inscription-eleve-primaire-carte',
+        nom: 'Inscription élève primaire (via notre carte)',
+        prix_vente: 10.0, // 4 DT expense + 1 DT service fee + 5 DT base fee
+        prix_achat: 4.0, // 4 DT expense to Carte Postale
+        type_item: 'service'
+      },
+      {
+        id: 'svc-inscription-eleve-secondaire-direct',
+        nom: 'Inscription élève secondaire (paiement direct)',
+        prix_vente: 5.0,
+        prix_achat: 0,
+        type_item: 'service'
+      },
+      {
+        id: 'svc-inscription-eleve-secondaire-carte',
+        nom: 'Inscription élève secondaire (via notre carte)',
+        prix_vente: 15.0, // 8.6 DT expense + 1.4 DT service fee + 5 DT base fee
+        prix_achat: 8.6, // 8.6 DT expense to Carte Postale
+        type_item: 'service'
+      },
+      {
+        id: 'svc-B3-carte',
+        nom: 'Inscription B3 (via notre carte)',
+        prix_vente: 15.0, // 10 DT expense + 5 DT base fee
+        prix_achat: 10.0, // 10 DT expense to Carte Postale
+        type_item: 'service'
       }
     ];
   }, []);
@@ -120,6 +161,9 @@ function VuePDV() {
         } catch {
           setServices([...defaultServicePresets]);
         }
+
+        // Charger le solde Carte Postale
+        await loadCartePostaleBalance();
       } catch (error) {
         console.error('Erreur:', error.message);
         toast.error("Impossible de charger l'inventaire.");
@@ -129,6 +173,27 @@ function VuePDV() {
     }
     chargerDonnees();
   }, [defaultServicePresets]);
+
+  const loadCartePostaleBalance = async () => {
+    try {
+      const { data } = await supabase
+        .from('transactions')
+        .select('type, montant, wallet')
+        .eq('wallet', 'Carte Postal');
+      
+      if (data) {
+        let balance = 0;
+        data.forEach(t => {
+          const amount = Number(t.montant) || 0;
+          if (t.type === 'Revenu') balance += amount;
+          else if (t.type === 'Dépense') balance -= amount;
+        });
+        setCartePostaleBalance(balance);
+      }
+    } catch (error) {
+      console.warn('Impossible de charger le solde Carte Postale:', error.message);
+    }
+  };
 
   const produitsFiltres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -156,6 +221,18 @@ function VuePDV() {
       prix_vente: Number(article.prix_vente || article.prix || 0),
       prix_achat: Number(article.prix_achat || 0)
     };
+
+    // Vérification spéciale pour les services qui utilisent la carte postale
+    if (isService && (['svc-inscription-eleve-primaire-carte', 'svc-inscription-eleve-secondaire-carte', 'svc-B3-carte'].includes(id) || baseItem.wallet === 'Carte Postal')) {
+      const coutCarte = Number(baseItem.prix_achat) * Number(baseItem.quantite);
+      if (cartePostaleBalance !== null && cartePostaleBalance < coutCarte) {
+        toast.error(`Solde insuffisant sur la Carte Postale (disponible: ${cartePostaleBalance.toFixed(2)} DT, requis: ${coutCarte.toFixed(2)} DT)`);
+        return;
+      }
+      if (cartePostaleBalance !== null && cartePostaleBalance < 10) {
+        toast.warn(`Attention: Solde Carte Postale faible (${cartePostaleBalance.toFixed(2)} DT)`);
+      }
+    }
 
     // Contrôle de stock pour les produits
     if (!isService) {
@@ -321,6 +398,54 @@ function VuePDV() {
 
       if (transactionError) throw transactionError;
 
+      // Déduction automatique du solde Carte Postale pour les services qui utilisent notre carte
+      const servicesAvecCarte = panier.filter(i => 
+        i.type_item === 'service' && 
+        (['svc-inscription-eleve-primaire-carte', 'svc-inscription-eleve-secondaire-carte', 'svc-B3-carte'].includes(i.id) || i.wallet === 'Carte Postal') &&
+        Number(i.prix_achat) > 0
+      );
+      
+      if (servicesAvecCarte.length > 0) {
+        const totalDeduction = servicesAvecCarte.reduce((sum, item) => 
+          sum + (Number(item.prix_achat) * Number(item.quantite)), 0
+        );
+        
+        if (totalDeduction > 0) {
+          // Créer une transaction de dépense pour la déduction de la carte postale
+          const deductionPayload = {
+            type: 'Dépense',
+            source: 'Déduction Carte Postale - Services clients',
+            montant: totalDeduction,
+            description: `Déduction automatique carte postale pour ${servicesAvecCarte.map(s => `${s.nom} x${s.quantite}`).join(', ')} - Ticket ${ticketNo}`,
+            user_id: user?.id || null
+          };
+
+          try {
+            let { error: deductionError } = await supabase
+              .from('transactions')
+              .insert({ ...deductionPayload, wallet: 'Carte Postal', is_internal: true });
+
+            if (deductionError && String(deductionError.message || '').toLowerCase().includes('column')) {
+              // Fallback if custom columns not present
+              const retry = await supabase.from('transactions').insert(deductionPayload);
+              deductionError = retry.error;
+            }
+
+            if (deductionError) {
+              console.error('Erreur déduction carte postale:', deductionError);
+              toast.warn(`Vente enregistrée mais erreur déduction carte postale: ${deductionError.message}`);
+            } else {
+              toast.info(`${totalDeduction.toFixed(2)} DT déduits de la Carte Postale`);
+              // Recharger le solde de la carte postale
+              await loadCartePostaleBalance();
+            }
+          } catch (deductionErr) {
+            console.error('Erreur déduction carte postale:', deductionErr);
+            toast.warn(`Vente enregistrée mais erreur déduction carte postale: ${deductionErr.message}`);
+          }
+        }
+      }
+
       // MAJ stock uniquement pour les produits avec une relecture fraiche
       const produitsMaj = panier.filter(i => i.type_item === 'product');
       if (produitsMaj.length) {
@@ -422,14 +547,34 @@ function VuePDV() {
       toast.error('Nom et prix requis.');
       return;
     }
+
+    const cout = Number(customService.cout) || 0;
+    const prix = Number(customService.prix);
+    
+    // Calculate margin percentage
+    const margin = prix > 0 ? ((prix - cout) / prix * 100).toFixed(1) : 0;
+    
+    // Validation for postal card services
+    if (customService.wallet === 'Carte Postal' && cout > 0) {
+      if (cartePostaleBalance !== null && cartePostaleBalance < cout) {
+        toast.error(`Solde insuffisant sur la Carte Postale (disponible: ${cartePostaleBalance.toFixed(2)} DT, requis: ${cout.toFixed(2)} DT)`);
+        return;
+      }
+      if (cartePostaleBalance !== null && cartePostaleBalance < 10) {
+        toast.warn(`Attention: Solde Carte Postale faible (${cartePostaleBalance.toFixed(2)} DT)`);
+      }
+    }
+
     ajouterAuPanier({
       id: `svc-custom-${Date.now()}`,
-      nom: customService.nom,
-      prix_vente: Number(customService.prix),
-      prix_achat: 0,
+      nom: `${customService.nom} (Marge: ${margin}% - ${customService.wallet})`,
+      prix_vente: prix,
+      prix_achat: cout,
+      wallet: customService.wallet,
       type_item: 'service'
     }, { quantite: Number(customService.quantite) || 1, isService: true });
-    setCustomService({ nom: '', prix: '', quantite: 1 });
+    
+    setCustomService({ nom: '', prix: '', quantite: 1, cout: '', wallet: 'Caisse' });
   };
 
   if (chargement) return <div>Chargement du PDV...</div>;
@@ -457,7 +602,21 @@ function VuePDV() {
               />
               <Button type="submit" variant="outlined">Ajouter</Button>
             </Box>
+            {/* Postal Card Balance Display */}
+            {cartePostaleBalance !== null && (
+              <Chip 
+                label={`Carte Postale: ${cartePostaleBalance.toFixed(2)} DT`}
+                color={cartePostaleBalance < 10 ? 'error' : cartePostaleBalance < 25 ? 'warning' : 'success'}
+                variant="filled"
+                sx={{ minWidth: 160, fontSize: '0.875rem', fontWeight: 600 }}
+              />
+            )}
           </Stack>
+          {cartePostaleBalance !== null && cartePostaleBalance < 10 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Attention: Solde Carte Postale faible ({cartePostaleBalance.toFixed(2)} DT). Pensez à la recharger.
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -589,7 +748,7 @@ function VuePDV() {
                   <Divider sx={{ my: 2 }} />
 
                   <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>Service personnalisé</Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 1 }}>
                     <TextField 
                       label="Nom du service" 
                       value={customService.nom} 
@@ -598,22 +757,55 @@ function VuePDV() {
                       fullWidth 
                     />
                     <TextField 
-                      label="Prix (DT)" 
+                      label="Prix Vente (DT)" 
                       type="number" 
-                      inputProps={{ step: '0.01' }} 
+                      inputProps={{ step: '0.01', min: '0' }} 
                       value={customService.prix} 
                       onChange={e => setCustomService(cs => ({ ...cs, prix: e.target.value }))} 
                       size="small" 
                       sx={{ width: 140 }} 
                     />
                     <TextField 
+                      label="Coût (DT)" 
+                      type="number" 
+                      inputProps={{ step: '0.01', min: '0' }} 
+                      value={customService.cout} 
+                      onChange={e => setCustomService(cs => ({ ...cs, cout: e.target.value }))} 
+                      size="small" 
+                      sx={{ width: 140 }} 
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <InputLabel>Source du Coût</InputLabel>
+                      <Select 
+                        value={customService.wallet} 
+                        onChange={e => setCustomService(cs => ({ ...cs, wallet: e.target.value }))} 
+                        label="Source du Coût"
+                      >
+                        <MenuItem value="Caisse">Caisse</MenuItem>
+                        <MenuItem value="Banque">Banque</MenuItem>
+                        <MenuItem value="Coffre">Coffre</MenuItem>
+                        <MenuItem value="Carte Postal">Carte Postale</MenuItem>
+                        <MenuItem value="Carte Banker">Carte Banker</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <TextField 
                       label="Quantité" 
                       type="number" 
+                      inputProps={{ min: '1' }}
                       value={customService.quantite} 
                       onChange={e => setCustomService(cs => ({ ...cs, quantite: e.target.value }))} 
                       size="small" 
                       sx={{ width: 120 }} 
                     />
+                    {customService.prix && customService.cout && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
+                        <Typography variant="caption" color="primary">
+                          Marge: {((Number(customService.prix) - Number(customService.cout || 0)) / Number(customService.prix) * 100).toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    )}
                     <Button variant="contained" onClick={handleAjouterCustomService}>Ajouter</Button>
                   </Stack>
                 </Box>

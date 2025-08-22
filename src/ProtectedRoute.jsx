@@ -29,7 +29,7 @@ function ProtectedRoute() {
     try { return allowedOrigins.includes(String(origin || '').toLowerCase()); } catch { return true; }
   };
   const isEmailAllowed = (email) => {
-    const em = String(email || '').toLowerCase();
+    const em = String(email || '').trim().toLowerCase();
     if (allowedEmails.length && allowedEmails.includes(em)) return true;
     if (allowedDomains.length) {
       const domain = em.split('@')[1];
