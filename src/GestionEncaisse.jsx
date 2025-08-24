@@ -4,16 +4,32 @@ import { supabase } from './supabaseClient';
 import { 
   Box, Paper, Typography, Stack, TextField, Button, Table, TableHead, TableRow, TableCell, TableBody, 
   Chip, Card, Grid, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
-  FormControl, InputLabel, Select, MenuItem, Alert,
-  TableContainer
+  FormControl, InputLabel, Select, MenuItem, Alert, TableContainer, Switch, FormControlLabel
 } from '@mui/material';
 import { 
   PictureAsPdf, Edit, Delete, Save, Cancel, Refresh, TrendingUp, AccountBalance, 
-  DeleteOutline 
+  DeleteOutline, Lock, CheckCircle as CheckCircleIcon, Warning, Info, SwapHoriz, Settings, LockOutlined as LockIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+
+// INTELLIGENT CASH MANAGEMENT CONFIGURATION
+const SMART_CASH_CONFIG = {
+  FIXED_OPENING_AMOUNT: 50,
+  AUTO_TRANSFER_THRESHOLD: 500,
+  MIN_OPERATING_AMOUNT: 50,
+  RECONCILIATION_TOLERANCE: 1,
+  AUTO_CLOSURE_TIME: 20,
+  WALLETS: {
+    'Caisse': { name: 'Caisse', icon: '', isPhysical: true },
+    'Banque': { name: 'Banque', icon: '', isPhysical: false },
+    'Coffre': { name: 'Coffre', icon: '', isPhysical: true },
+    'Carte Postal': { name: 'Carte Postal', icon: '', isPhysical: false },
+    'Carte Banker': { name: 'Carte Banker', icon: '', isPhysical: false }
+  }
+};
 
 function fmtDateTimeLocal(d) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -59,6 +75,25 @@ function GestionEncaisse() {
   const [editValues, setEditValues] = useState({});
   const [deleteDialog, setDeleteDialog] = useState({ open: false, transaction: null });
   
+  // INTELLIGENT CASH MANAGEMENT STATE
+  const [smartMode, setSmartMode] = useState(true);
+  const [systemAlerts, setSystemAlerts] = useState([]);
+  const [reconciliationDialog, setReconciliationDialog] = useState({ open: false, physicalAmount: '' });
+  const [balances, setBalances] = useState({});
+  const [dailyStatus, setDailyStatus] = useState({
+    isOpened: false,
+    isClosed: false,
+    openingFund: null,
+    closureRecord: null
+  });
+  
+  // Flexible opening amount state
+  const [openingAmountDialog, setOpeningAmountDialog] = useState({ 
+    open: false, 
+    amount: SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT,
+    mode: 'add' // 'add' or 'set'
+  });
+  
   // Format date + time as dd/MM/yyyy HH:mm (local)
   const fmtDateTime = (value) => {
     const d = new Date(value);
@@ -95,9 +130,111 @@ function GestionEncaisse() {
     }
   };
 
+  // INTELLIGENT CASH MANAGEMENT FUNCTIONS
+  
+  // Smart wallet determination
+  const determineWallet = (transaction) => {
+    if (transaction.wallet && SMART_CASH_CONFIG.WALLETS[transaction.wallet]) {
+      return transaction.wallet;
+    }
+    
+    const method = (transaction.method || '').toLowerCase();
+    const source = (transaction.source || '').toLowerCase();
+    const description = (transaction.description || '').toLowerCase();
+    
+    if (method.includes('espèces') || method.includes('cash') || source.includes('caisse')) {
+      return 'Caisse';
+    }
+    if (method.includes('carte') || source.includes('carte') || description.includes('carte')) {
+      if (source.includes('postal') || description.includes('postal')) return 'Carte Postal';
+      if (source.includes('banker') || description.includes('banker')) return 'Carte Banker';
+      return 'Banque';
+    }
+    if (source.includes('coffre') || description.includes('coffre')) return 'Coffre';
+    return 'Caisse';
+  };
+
+  // Calculate real-time balances (optimized with optional date range)
+  const calculateRealTimeBalances = async (startIso, endIso) => {
+    try {
+      let query = supabase
+        .from('transactions')
+        .select('type,montant,wallet,description,source,is_internal,created_at');
+      if (startIso && endIso) {
+        query = query.gte('created_at', startIso).lte('created_at', endIso);
+      }
+      const { data: allTransactions, error } = await query.order('created_at', { ascending: true });
+      if (error) throw error;
+      const newBalances = Object.keys(SMART_CASH_CONFIG.WALLETS).reduce((acc, w) => { acc[w] = 0; return acc; }, {});
+      for (const tx of allTransactions || []) {
+        const wallet = tx.wallet || determineWallet(tx);
+        if (!wallet) continue;
+        const amount = Number(tx.montant) || 0;
+        if (tx.type === 'Revenu') newBalances[wallet] += amount; else if (tx.type === 'Dépense') newBalances[wallet] -= amount;
+      }
+      setBalances(prev => {
+        const changed = Object.keys(newBalances).some(k => newBalances[k] !== prev[k]);
+        return changed ? newBalances : prev;
+      });
+      return newBalances;
+    } catch (error) {
+      console.error('Error calculating balances:', error);
+      return {};
+    }
+  };
+
+  // Generate smart alerts
+  const generateSmartAlerts = (balances, dailyStatus) => {
+    const alerts = [];
+    const caisseBalance = balances['Caisse'] || 0;
+    const actualOpeningAmount = dailyStatus.openingAmount || SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT;
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // Cash level alerts (using actual opening amount)
+    if (caisseBalance > actualOpeningAmount + SMART_CASH_CONFIG.AUTO_TRANSFER_THRESHOLD) {
+      const excess = caisseBalance - actualOpeningAmount;
+      alerts.push({
+        type: 'warning',
+        message: `Niveau de caisse élevé: ${caisseBalance.toFixed(2)} DT. Excédent de ${excess.toFixed(2)} DT à transférer vers le coffre.`,
+        action: 'transfer_to_safe'
+      });
+    }
+    
+    if (caisseBalance < SMART_CASH_CONFIG.MIN_OPERATING_AMOUNT) {
+      alerts.push({
+        type: 'error',
+        message: `Caisse insuffisante: ${caisseBalance.toFixed(2)} DT < ${SMART_CASH_CONFIG.MIN_OPERATING_AMOUNT} DT requis.`,
+        action: 'add_funds'
+      });
+    }
+    
+    // Opening status
+    if (!dailyStatus.openingFund) {
+      alerts.push({
+        type: 'info',
+        message: 'Ouverture journalière non effectuée. Choisissez le montant de fond de caisse.',
+        action: 'daily_opening'
+      });
+    }
+    
+    // Closure status
+    if (currentHour >= SMART_CASH_CONFIG.AUTO_CLOSURE_TIME && !dailyStatus.closureRecord) {
+      alerts.push({
+        type: 'warning',
+        message: `Clôture journalière en attente. ${actualOpeningAmount} DT seront conservés en caisse.`,
+        action: 'daily_closure'
+      });
+    }
+    
+    return alerts;
+  };
+
   const load = async () => {
     try {
       setLoading(true);
+      setSystemAlerts([]); // Clear previous alerts
+      
       let start, end;
       if (viewMode === 'daily') {
         // Build local day boundaries and convert after
@@ -123,6 +260,7 @@ function GestionEncaisse() {
       setTransactions(transData || []);
 
       // Dépenses (daily)
+      let depData = [];
       if (viewMode === 'daily') {
         let depBase = supabase
           .from('transactions')
@@ -132,7 +270,7 @@ function GestionEncaisse() {
           .lte('created_at', endIso)
           .order('created_at', { ascending: true });
         try { depBase = depBase.neq('is_internal', true); } catch (_) {}
-        let { data: depData, error: depErr } = await depBase;
+        let { data: depDataResult, error: depErr } = await depBase;
         if (depErr && String(depErr.message || '').toLowerCase().includes('is_internal')) {
           const retry = await supabase
             .from('transactions')
@@ -141,15 +279,61 @@ function GestionEncaisse() {
             .gte('created_at', startIso)
             .lte('created_at', endIso)
             .order('created_at', { ascending: true });
-          depData = retry.data; depErr = retry.error;
+          depDataResult = retry.data; depErr = retry.error;
         }
         if (depErr) throw depErr;
-        setDepenses(depData || []);
+        depData = depDataResult || [];
+        setDepenses(depData);
       } else {
         setDepenses([]);
       }
+
+      // INTELLIGENT FEATURES: Calculate balances and generate alerts
+      if (smartMode) {
+        try {
+          const newBalances = await calculateRealTimeBalances(startIso, endIso);
+          
+          // Detect daily status using the correct schema
+          const allTransactions = [...(transData || []), ...depData];
+          const openingFund = allTransactions.find(tx => 
+            tx.is_internal === true && 
+            (tx.source === 'ouverture' || String(tx.description || '').toLowerCase().includes('ouverture'))
+          );
+          const closureRecord = allTransactions.find(tx => 
+            tx.is_internal === true && 
+            (tx.source === 'cloture' || String(tx.description || '').toLowerCase().includes('clôture'))
+          );
+          
+          const newDailyStatus = {
+            isOpened: !!openingFund,
+            isClosed: !!closureRecord,
+            openingFund,
+            closureRecord,
+            openingAmount: openingFund ? (openingFund.cout_total || openingFund.montant) : 0
+          };
+          
+          setDailyStatus(newDailyStatus);
+          
+          // Update the Fund display to match the opening amount
+          if (openingFund) {
+            const actualOpeningAmount = openingFund.cout_total || openingFund.montant || 0;
+            setFondCaisse(actualOpeningAmount.toString());
+          }
+          
+          // Generate smart alerts
+          const alerts = generateSmartAlerts(newBalances, newDailyStatus);
+          setSystemAlerts(alerts);
+        } catch (smartError) {
+          console.error('Smart features error:', smartError);
+          setSystemAlerts([{
+            type: 'warning',
+            message: 'Fonctionnalités intelligentes temporairement indisponibles.'
+          }]);
+        }
+      }
+      
     } catch (e) {
-      console.error(e);
+      console.error('Load error:', e);
       toast.error('Erreur lors du chargement des données.');
     } finally {
       setLoading(false);
@@ -161,12 +345,188 @@ function GestionEncaisse() {
     load();
   }, [viewMode, date, from, to, paymentMode]);
 
+  // Smart automated functions for cash management
+  const openCashRegister = async (amount = SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT, mode = 'add') => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const currentBalance = balances?.Caisse || 0;
+      let actualOpeningAmount = amount;
+      let transactionAmount = amount;
+      
+      if (mode === 'set' && currentBalance > 0) {
+        // We want to SET the caisse to exactly 'amount', so we need to adjust
+        transactionAmount = amount - currentBalance;
+        if (transactionAmount < 0) {
+          // Need to remove money (negative transaction)
+          const { error: removeError } = await supabase.from('transactions').insert({
+            type: 'Dépense',
+            source: 'ajustement',
+            montant: Math.abs(transactionAmount),
+            description: `Ajustement caisse - ${format(new Date(), 'dd/MM/yyyy')} - Solde précédent: ${currentBalance} DT`,
+            user_id: user.id,
+            wallet: 'Caisse',
+            is_internal: true
+          });
+          if (removeError) throw removeError;
+        }
+        
+        // Always create an opening transaction to mark the caisse as opened
+        // For "set" mode, this records the adjustment (could be 0), not the final amount
+        const { error } = await supabase.from('transactions').insert({
+          type: transactionAmount >= 0 ? 'Revenu' : 'Dépense',
+          source: 'ouverture',
+          montant: Math.abs(transactionAmount),
+          description: transactionAmount === 0 
+            ? `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond confirmé: ${amount} DT (aucun ajustement nécessaire)`
+            : `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond exact: ${amount} DT (ajustement: ${transactionAmount > 0 ? '+' : ''}${transactionAmount.toFixed(2)} DT)`,
+          user_id: user.id,
+          wallet: 'Caisse',
+          is_internal: true,
+          // Store the final opening amount in a custom field for tracking
+          cout_total: amount // Using cout_total to store the actual opening fund amount
+        });
+        if (error) throw error;
+      } else {
+        // Normal mode: ADD the amount
+        const { error } = await supabase.from('transactions').insert({
+          type: 'Revenu',
+          source: 'ouverture',
+          montant: amount,
+          description: `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond de caisse: ${amount} DT`,
+          user_id: user.id,
+          wallet: 'Caisse',
+          is_internal: true,
+          cout_total: currentBalance + amount // Store the final opening fund amount
+        });
+        if (error) throw error;
+        actualOpeningAmount = currentBalance + amount;
+      }
+      
+      setDailyStatus(prev => ({ 
+        ...prev, 
+        isOpened: true, 
+        openingFund: { montant: actualOpeningAmount },
+        openingAmount: actualOpeningAmount 
+      }));
+      setFondCaisse(actualOpeningAmount.toString()); // Update the Fund display
+      setOpeningAmountDialog({ open: false, amount: SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT, mode: 'add' });
+      
+      if (mode === 'set') {
+        toast.success(`Caisse ajustée à ${amount} DT exactement`);
+      } else {
+        toast.success(`Caisse ouverte avec ${amount} DT ajoutés`);
+      }
+      load();
+    } catch (error) {
+      console.error('Opening error:', error);
+      toast.error('Erreur lors de l\'ouverture de la caisse: ' + (error.message || 'Erreur inconnue'));
+    }
+  };
+
+  const openCashRegisterWithCustomAmount = async () => {
+    const fullBalances = await calculateRealTimeBalances();
+    const currentBalance = fullBalances?.Caisse != null ? fullBalances.Caisse : (balances?.Caisse || 0);
+    setOpeningAmountDialog({
+      open: true,
+      amount: currentBalance > 0 ? currentBalance.toFixed(2) : SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT,
+      mode: currentBalance > 0 ? 'set' : 'add'
+    });
+  };
+
+  const handleOpeningAmountConfirm = () => {
+    const amount = parseFloat(openingAmountDialog.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Veuillez entrer un montant valide');
+      return;
+    }
+    openCashRegister(amount, openingAmountDialog.mode);
+  };
+
+  const closeCashRegister = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const caisseBalance = balances?.Caisse || 0;
+      const actualOpeningAmount = dailyStatus.openingAmount || dailyStatus.openingFund?.montant || SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT;
+      const expectedTransfer = Math.max(0, caisseBalance - actualOpeningAmount);
+      
+      if (expectedTransfer > 0) {
+        // Transfer excess to safe
+        await performSmartTransfer('Caisse', 'Coffre', expectedTransfer, 'Clôture journalière');
+      }
+      
+      const now = new Date();
+      const { error } = await supabase.from('transactions').insert({
+        type: 'Dépense',
+        source: 'cloture',
+        montant: 0,
+        description: `Clôture caisse - ${format(now, 'dd/MM/yyyy')} - Conservé: ${actualOpeningAmount} DT`,
+        user_id: user.id,
+        wallet: 'Caisse',
+        is_internal: true
+      });
+
+      if (error) throw error;
+
+      setDailyStatus(prev => ({ ...prev, isClosed: true, closureRecord: { montant: 0 } }));
+      toast.success(`Caisse fermée. ${expectedTransfer > 0 ? `${expectedTransfer.toFixed(2)} DT transférés au coffre, ${actualOpeningAmount} DT conservés` : `${actualOpeningAmount} DT conservés, aucun transfert nécessaire`}`);
+      load();
+    } catch (error) {
+      console.error('Closure error:', error);
+      toast.error('Erreur lors de la fermeture de la caisse: ' + (error.message || 'Erreur inconnue'));
+    }
+  };
+
+  const performSmartTransfer = async (fromWallet, toWallet, amount, reason) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const now = new Date();
+      const transfers = [
+        {
+          type: 'Dépense',
+          source: 'transfert',
+          montant: amount,
+          description: `Transfert vers ${toWallet} - ${reason}`,
+          user_id: user.id,
+          wallet: fromWallet,
+          is_internal: true
+        },
+        {
+          type: 'Revenu',
+          source: 'transfert',
+          montant: amount,
+          description: `Transfert depuis ${fromWallet} - ${reason}`,
+          user_id: user.id,
+          wallet: toWallet,
+          is_internal: true
+        }
+      ];
+
+      const { error } = await supabase.from('transactions').insert(transfers);
+      if (error) throw error;
+
+      toast.success(`Transfert de ${amount.toFixed(2)} DT: ${fromWallet} → ${toWallet}`);
+      load();
+    } catch (error) {
+      console.error('Transfer error:', error);
+      toast.error('Erreur lors du transfert: ' + (error.message || 'Erreur inconnue'));
+    }
+  };
+
   // Identify opening fund/internal revenue entries
   const isOpeningFund = (r) => {
     try {
       const src = String(r?.source || '').toLowerCase();
       const desc = String(r?.description || '').toLowerCase();
-      return r?.is_internal === true || src.includes('ouverture') || desc.includes('fond de caisse');
+      return r?.is_internal === true || 
+             src.includes('ouverture') || 
+             desc.includes('fond de caisse') ||
+             desc.includes('ouverture caisse');
     } catch {
       return false;
     }
@@ -190,7 +550,14 @@ function GestionEncaisse() {
     const netVentes = total - couts;
     const totalDepenses = depensesNonInternal.reduce((s, r) => s + Number(r.montant || 0), 0);
 
-    const caisseIn = transactions.filter(r => getWallet(r) === 'Caisse').reduce((s, r) => s + Number(r.montant || 0), 0);
+    // Include ALL cash movements (including opening funds) for theoretical cash calculation
+    const caisseIn = transactions.filter(r => getWallet(r) === 'Caisse').reduce((s, r) => {
+      // For opening transactions, use the actual opening amount (cout_total) if available
+      if (isOpeningFund(r) && r.cout_total !== undefined) {
+        return s + Number(r.cout_total || 0);
+      }
+      return s + Number(r.montant || 0);
+    }, 0);
     const caisseOut = depenses.filter(d => getWallet(d) === 'Caisse').reduce((s, r) => s + Number(r.montant || 0), 0);
     const caisseTheorique = caisseIn - caisseOut;
 
@@ -381,7 +748,7 @@ function GestionEncaisse() {
         };
         const inCoffre = {
           type: 'Revenu',
-          source: 'Cloture',
+          source: 'Clôture',
           montant: toTransfer,
           description: `Clôture: excédent reçu depuis Caisse (${date})`,
           wallet: 'Coffre',
@@ -515,6 +882,99 @@ function GestionEncaisse() {
         </Typography>
       </Box>
 
+      {/* Smart Alerts */}
+      {smartMode && systemAlerts.length > 0 && (
+        <Box sx={{ px: { xs: 2, sm: 3 } }}>
+          {systemAlerts.map((alert, index) => (
+            <Alert 
+              key={index}
+              severity={alert.type}
+              sx={{ mb: 1 }}
+              action={
+                alert.action && (
+                  <Button 
+                    size="small" 
+                    color="inherit"
+                    onClick={() => {
+                      if (alert.action === 'daily_opening') openCashRegisterWithCustomAmount();
+                      else if (alert.action === 'daily_closure') closeCashRegister();
+                      else if (alert.action === 'transfer_to_safe') {
+                        const actualOpeningAmount = dailyStatus.openingAmount || SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT;
+                        const amount = balances?.Caisse - actualOpeningAmount;
+                        if (amount > 0) performSmartTransfer('Caisse', 'Coffre', amount, 'Transfert automatique');
+                      }
+                    }}
+                  >
+                    {alert.action === 'daily_opening' ? 'Ouvrir' : 
+                     alert.action === 'daily_closure' ? 'Fermer' : 
+                     alert.action === 'transfer_to_safe' ? 'Transférer' : 'Action'}
+                  </Button>
+                )
+              }
+            >
+              {alert.message}
+            </Alert>
+          ))}
+        </Box>
+      )}
+
+      {/* Smart Control Panel */}
+      {smartMode && (
+        <Paper sx={{ flexShrink: 0, p: 2, mx: { xs: 2, sm: 3 }, bgcolor: 'primary.50' }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Gestion Intelligente
+          </Typography>
+          <Stack direction="row" spacing={2} flexWrap="wrap">
+            <Button
+              variant="contained"
+              color="success"
+              disabled={dailyStatus.isOpened}
+              onClick={() => openCashRegister()}
+              startIcon={<CheckCircleIcon />}
+            >
+              Ouverture rapide ({SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT} DT)
+            </Button>
+            <Button
+              variant="outlined"
+              color="success"
+              disabled={dailyStatus.isOpened}
+              onClick={() => openCashRegisterWithCustomAmount()}
+              startIcon={<Settings />}
+            >
+              Ouverture personnalisée
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={!dailyStatus.isOpened || dailyStatus.isClosed}
+              onClick={() => closeCashRegister()}
+              startIcon={<LockIcon />}
+            >
+              Clôture
+            </Button>
+            <Chip 
+              label={`Caisse: ${(balances?.Caisse || 0).toFixed(2)} DT`}
+              color={balances?.Caisse > SMART_CASH_CONFIG.AUTO_TRANSFER_THRESHOLD ? 'warning' : 'default'}
+            />
+            <Chip 
+              label={`Coffre: ${(balances?.Coffre || 0).toFixed(2)} DT`}
+              color="info"
+            />
+            {dailyStatus.openingAmount > 0 && (
+              <Chip 
+                label={`Fond du jour: ${dailyStatus.openingAmount.toFixed(2)} DT`}
+                color="primary"
+                variant="outlined"
+              />
+            )}
+            <Chip 
+              label={dailyStatus.isOpened ? 'Ouverte' : 'Fermée'}
+              color={dailyStatus.isOpened ? 'success' : 'default'}
+            />
+          </Stack>
+        </Paper>
+      )}
+
       {/* Controls */}
       <Paper sx={{ flexShrink: 0, p: 2, mx: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
@@ -537,6 +997,21 @@ function GestionEncaisse() {
             >
               Historique
             </Button>
+          </Stack>
+
+          {/* Smart Mode Toggle */}
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Gestion intelligente:</Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={smartMode}
+                  onChange={(e) => setSmartMode(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={smartMode ? "Activée" : "Désactivée"}
+            />
           </Stack>
 
           {/* Filters */}
@@ -956,6 +1431,82 @@ function GestionEncaisse() {
           <Button onClick={closeDeleteDialog}>Annuler</Button>
           <Button onClick={confirmDelete} color="error" variant="contained">
             Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Custom Opening Amount Dialog */}
+      <Dialog open={openingAmountDialog.open} onClose={() => setOpeningAmountDialog({ ...openingAmountDialog, open: false })} maxWidth="sm" fullWidth>
+        <DialogTitle>Ouverture de caisse personnalisée</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Solde actuel en caisse: <strong>{(balances?.Caisse || 0).toFixed(2)} DT</strong>
+          </Alert>
+          
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            {openingAmountDialog.mode === 'set' 
+              ? "Ajustez le solde de caisse au montant exact souhaité"
+              : "Ajoutez un montant au solde actuel"
+            }
+          </Typography>
+
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Mode d'ouverture:</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant={openingAmountDialog.mode === 'add' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => setOpeningAmountDialog(prev => ({ ...prev, mode: 'add', amount: '' }))
+                }
+              >
+                Ajouter au solde
+              </Button>
+              <Button
+                variant={openingAmountDialog.mode === 'set' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => setOpeningAmountDialog(prev => ({ ...prev, mode: 'set', amount: (balances?.Caisse || 0).toFixed(2) }))
+                }
+              >
+                Définir montant exact
+              </Button>
+            </Stack>
+          </FormControl>
+          
+          <TextField
+            fullWidth
+            type="number"
+            label={openingAmountDialog.mode === 'set' ? 'Montant exact en caisse (DT)' : 'Montant à ajouter (DT)'}
+            value={openingAmountDialog.amount}
+            onChange={(e) => setOpeningAmountDialog(prev => ({ ...prev, amount: e.target.value }))}
+            InputProps={{
+              inputProps: { min: 0, step: 0.01 }
+            }}
+            helperText={(() => {
+              const current = balances?.Caisse || 0;
+              const val = parseFloat(openingAmountDialog.amount || '0') || 0;
+              if (openingAmountDialog.mode === 'set') {
+                const diff = val - current;
+                return `Solde actuel: ${current.toFixed(2)} DT | Ajustement: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} DT | Solde final projeté: ${val.toFixed(2)} DT`;
+              } else {
+                const projected = current + val;
+                return `Solde actuel: ${current.toFixed(2)} DT → Après ajout: ${projected.toFixed(2)} DT`;
+              }
+            })()}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setOpeningAmountDialog({ ...openingAmountDialog, open: false })}
+          >
+            Annuler
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleOpeningAmountConfirm}
+            startIcon={<CheckCircleIcon />}
+          >
+            {openingAmountDialog.mode === 'set' ? 'Ajuster la caisse' : 'Ouvrir la caisse'}
           </Button>
         </DialogActions>
       </Dialog>

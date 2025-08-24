@@ -23,7 +23,7 @@ import {
   CircularProgress,
   TableContainer
 } from '@mui/material';
-import { Print as PrintIcon, Payment as PaymentIcon } from '@mui/icons-material';
+import { Print as PrintIcon, Payment as PaymentIcon, Edit, Save, Cancel, DeleteOutline } from '@mui/icons-material';
 
 function DetailFiche() {
   const { id } = useParams();
@@ -35,6 +35,8 @@ function DetailFiche() {
   const [businessName, setBusinessName] = useState('Mizania+');
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0,10));
   const [tvaPercent, setTvaPercent] = useState(20);
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({ description: '', quantite: 1, prixTotal: 0 });
 
   const handleFinaliser = async () => {
     const totalFinal = calculerTotal();
@@ -217,6 +219,40 @@ function DetailFiche() {
     }
   };
 
+  const startEdit = (detail) => {
+    setEditingId(detail.id);
+    setEditValues({ description: detail.description, quantite: detail.quantite, prixTotal: detail.prix });
+  };
+  const cancelEdit = () => { setEditingId(null); };
+  const saveEdit = async (detail) => {
+    try {
+      const quantite = Math.max(1, Number(editValues.quantite) || 1);
+      const prixTotal = Math.max(0, Number(editValues.prixTotal) || 0);
+      const { error } = await supabase
+        .from('details_fiche')
+        .update({ description: editValues.description, quantite, prix: prixTotal })
+        .eq('id', detail.id);
+      if (error) throw error;
+      toast.success('Ligne mise à jour');
+      setEditingId(null);
+      // Optimistic update
+      setDetails(prev => prev.map(d => d.id === detail.id ? { ...d, description: editValues.description, quantite, prix: prixTotal } : d));
+    } catch (e) {
+      toast.error('Erreur mise à jour: ' + e.message);
+    }
+  };
+  const deleteDetail = async (detail) => {
+    if (!window.confirm('Supprimer cet élément ?')) return;
+    try {
+      const { error } = await supabase.from('details_fiche').delete().eq('id', detail.id);
+      if (error) throw error;
+      toast.success('Ligne supprimée');
+      setDetails(prev => prev.filter(d => d.id !== detail.id));
+    } catch (e) {
+      toast.error('Erreur suppression: ' + e.message);
+    }
+  };
+
   if (chargement) {
     return (
       <Box sx={{ 
@@ -343,16 +379,84 @@ function DetailFiche() {
                         <TableCell align="center" sx={{ fontWeight: 'bold' }}>Quantité</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold', display: { xs: 'none', sm: 'table-cell' } }}>Prix Unitaire</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {details.map(d => (
                         <TableRow key={d.id} hover>
-                          <TableCell>{d.description}</TableCell>
-                          <TableCell align="center">{d.quantite}</TableCell>
-                          <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{(d.prix / d.quantite).toFixed(2)} DT</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                            {d.prix.toFixed(2)} DT
+                          <TableCell sx={{ width: '35%' }}>
+                            {editingId === d.id ? (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                value={editValues.description}
+                                onChange={e => setEditValues(v => ({ ...v, description: e.target.value }))
+                                }
+                              />
+                            ) : (
+                              d.description
+                            )}
+                          </TableCell>
+                          <TableCell align="center" sx={{ width: 90 }}>
+                            {editingId === d.id ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                inputProps={{ min: 1, style: { textAlign: 'center' } }}
+                                value={editValues.quantite}
+                                onChange={e => setEditValues(v => ({ ...v, quantite: e.target.value }))
+                                }
+                                sx={{ width: 70 }}
+                              />
+                            ) : (
+                              d.quantite
+                            )}
+                          </TableCell>
+                          <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' }, width: 140 }}>
+                            {editingId === d.id ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right' } }}
+                                value={ (Number(editValues.prixTotal) / Math.max(1, Number(editValues.quantite)||1)).toFixed(2) }
+                                onChange={e => {
+                                  const unit = Number(e.target.value) || 0;
+                                  setEditValues(v => ({ ...v, prixTotal: unit * Math.max(1, Number(v.quantite)||1) }))
+                                }}
+                                sx={{ width: 110 }}
+                              />
+                            ) : (
+                              (d.prix / d.quantite).toFixed(2) + ' DT'
+                            )}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', width: 120 }}>
+                            {editingId === d.id ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                inputProps={{ min: 0, step: 0.01, style: { textAlign: 'right' } }}
+                                value={editValues.prixTotal}
+                                onChange={e => setEditValues(v => ({ ...v, prixTotal: e.target.value }))
+                                }
+                                sx={{ width: 110 }}
+                              />
+                            ) : (
+                              d.prix.toFixed(2) + ' DT'
+                            )}
+                          </TableCell>
+                          <TableCell align="center" sx={{ width: 160 }}>
+                            {editingId === d.id ? (
+                              <Stack direction="row" spacing={1} justifyContent="center">
+                                <Button size="small" color="success" variant="contained" startIcon={<Save />} onClick={() => saveEdit(d)}>Sauver</Button>
+                                <Button size="small" color="inherit" variant="outlined" startIcon={<Cancel />} onClick={cancelEdit}>Annuler</Button>
+                              </Stack>
+                            ) : (
+                              <Stack direction="row" spacing={1} justifyContent="center">
+                                <Button size="small" variant="outlined" startIcon={<Edit />} onClick={() => startEdit(d)}>Modifier</Button>
+                                <Button size="small" color="error" variant="outlined" startIcon={<DeleteOutline />} onClick={() => deleteDetail(d)}>Supprimer</Button>
+                              </Stack>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

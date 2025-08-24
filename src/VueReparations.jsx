@@ -4,7 +4,7 @@ import { supabase } from './supabaseClient';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { Box, Typography, Paper, Button, Table, TableHead, TableRow, TableCell, TableBody, Stack, Chip, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { PictureAsPdf, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { PictureAsPdf, ArrowUpward, ArrowDownward, DeleteOutline } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -14,6 +14,7 @@ function VueReparations() {
   // Sorting state
   const [sortBy, setSortBy] = useState('created_at'); // 'created_at' | 'statut' | 'client' | 'id'
   const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
+  const [deletingId, setDeletingId] = useState(null);
 
   // Fonction pour récupérer les fiches (réutilisable)
   const getFiches = async () => {
@@ -201,6 +202,22 @@ function VueReparations() {
     return <Chip size="small" color={cfg.color} label={cfg.label} variant={cfg.color === 'default' ? 'outlined' : 'filled'} />;
   };
 
+  const handleDeleteFiche = async (fiche) => {
+    if (!window.confirm(`Supprimer la fiche #${fiche.id} ?`)) return;
+    try {
+      setDeletingId(fiche.id);
+      const { error } = await supabase.from('fiches_reparation').delete().eq('id', fiche.id);
+      if (error) throw error;
+      toast.success(`Fiche #${fiche.id} supprimée`);
+      // Real-time channel will update list, but optimistically remove to feel instant
+      setFiches(prev => prev.filter(f => f.id !== fiche.id));
+    } catch (e) {
+      toast.error('Suppression impossible: ' + (e.message || 'Erreur'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (chargement) {
     return (
       <Box sx={{ 
@@ -314,14 +331,26 @@ function VueReparations() {
                     </TableCell>
                     <TableCell align="center">{statutChip(fiche.statut)}</TableCell>
                     <TableCell align="center">
-                      <Button 
-                        size="small" 
-                        component={Link} 
-                        to={`/reparations/${fiche.id}`} 
-                        variant="contained"
-                      >
-                        Voir Détails
-                      </Button>
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Button 
+                          size="small" 
+                          component={Link} 
+                          to={`/reparations/${fiche.id}`} 
+                          variant="contained"
+                        >
+                          Voir Détails
+                        </Button>
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          startIcon={<DeleteOutline />}
+                          disabled={deletingId === fiche.id}
+                          onClick={() => handleDeleteFiche(fiche)}
+                        >
+                          {deletingId === fiche.id ? 'Suppression…' : 'Supprimer'}
+                        </Button>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}

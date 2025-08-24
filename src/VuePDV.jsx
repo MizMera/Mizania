@@ -763,7 +763,10 @@ function VuePDV() {
                       value={customService.prix} 
                       onChange={e => setCustomService(cs => ({ ...cs, prix: e.target.value }))} 
                       size="small" 
-                      sx={{ width: 140 }} 
+                      sx={{ 
+                        width: 140,
+                        '& .MuiInputBase-input': { color: '#10B981', fontWeight: 600 }
+                      }} 
                     />
                     <TextField 
                       label="Coût (DT)" 
@@ -772,7 +775,10 @@ function VuePDV() {
                       value={customService.cout} 
                       onChange={e => setCustomService(cs => ({ ...cs, cout: e.target.value }))} 
                       size="small" 
-                      sx={{ width: 140 }} 
+                      sx={{ 
+                        width: 140,
+                        '& .MuiInputBase-input': { color: '#EF4444', fontWeight: 600 }
+                      }} 
                     />
                   </Stack>
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -801,7 +807,13 @@ function VuePDV() {
                     />
                     {customService.prix && customService.cout && (
                       <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
-                        <Typography variant="caption" color="primary">
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            fontWeight: 600,
+                            color: (Number(customService.prix) - Number(customService.cout || 0)) >= 0 ? 'success.main' : 'error.main'
+                          }}
+                        >
                           Marge: {((Number(customService.prix) - Number(customService.cout || 0)) / Number(customService.prix) * 100).toFixed(1)}%
                         </Typography>
                       </Box>

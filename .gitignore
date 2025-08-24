@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Temporary documentation / operational notes (not for commit)
+WEEKEND_CARRYOVER_FIX.md
+CARRYOVER_FIX_COMPLETE.md
+THEORETICAL_CASH_FIX.md
+# Ignore any ad‑hoc operational note prefixed TEMP_DOC_
+TEMP_DOC_*.md

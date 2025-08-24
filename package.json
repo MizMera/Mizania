@@ -12,10 +12,11 @@
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
-    "@mui/material": "^5.15.20",
     "@mui/icons-material": "^5.15.20",
+    "@mui/material": "^5.15.20",
     "@supabase/supabase-js": "^2.43.5",
     "@vitejs/plugin-react": "^4.2.1",
+    "date-fns": "^4.1.0",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^3.8.2",
     "react": "^18.2.0",
