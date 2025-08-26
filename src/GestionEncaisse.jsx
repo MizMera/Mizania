@@ -573,7 +573,8 @@ function GestionEncaisse() {
       montant: transaction.montant,
       cout_total: transaction.cout_total || 0,
       source: transaction.source || '',
-      description: transaction.description || ''
+      description: transaction.description || '',
+      created_at: transaction.created_at
     });
   };
 
@@ -590,7 +591,8 @@ function GestionEncaisse() {
           montant: Number(editValues.montant),
           cout_total: Number(editValues.cout_total),
           source: editValues.source,
-          description: editValues.description
+          description: editValues.description,
+          created_at: editValues.created_at
         })
         .eq('id', editingId);
 
@@ -1242,7 +1244,17 @@ function GestionEncaisse() {
                       fontFamily: 'monospace',
                       fontSize: '0.8rem'
                     }}>
-                      {fmtDateTime(r.created_at)}
+                      {isEditing ? (
+                        <TextField
+                          type="datetime-local"
+                          value={editValues.created_at ? new Date(editValues.created_at).toISOString().slice(0,16) : ''}
+                          onChange={e => setEditValues({...editValues, created_at: new Date(e.target.value).toISOString()})}
+                          size="small"
+                          InputProps={{ sx: { fontSize: '0.8rem', padding: '4px 8px' } }}
+                        />
+                      ) : (
+                        fmtDateTime(r.created_at)
+                      )}
                     </TableCell>
                     <TableCell><Chip size="small" label={ticket} /></TableCell>
                     <TableCell>
