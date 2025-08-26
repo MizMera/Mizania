@@ -31,7 +31,7 @@ import {
   DialogActions,
   Alert
 } from '@mui/material';
-import { SwapHoriz, Send, AccountBalance, Delete, Edit } from '@mui/icons-material';
+import { SwapHoriz, Send, AccountBalance, Delete, Edit as EditIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { PictureAsPdf } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -57,6 +57,8 @@ function Transferts() {
     newBalance: '', 
     reason: '' 
   });
+  const [editingId, setEditingId] = useState(null);
+  const [editDate, setEditDate] = useState('');
 
   const fmtDateTime = (value) => {
     const d = new Date(value);
@@ -406,7 +408,7 @@ function Transferts() {
                       sx={{ color: 'text.secondary' }}
                       title="Ajuster le solde"
                     >
-                      <Edit fontSize="small" />
+                      <EditIcon fontSize="small" />
                     </IconButton>
                   </Stack>
                 </CardContent>
@@ -464,6 +466,32 @@ function Transferts() {
     } catch (error) {
       console.error('Error generating Transferts PDF:', error);
       toast.error('Erreur lors de la génération du PDF: ' + error.message);
+    }
+  };
+
+  const startEdit = (entry) => {
+    setEditingId(entry.id);
+    // prepare datetime-local value
+    setEditDate(entry.created_at ? new Date(entry.created_at).toISOString().slice(0,16) : '');
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDate('');
+  };
+  const saveEdit = async () => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ created_at: new Date(editDate).toISOString() })
+        .eq('id', editingId);
+      if (error) throw error;
+      toast.success('Date de transfert modifiée');
+      cancelEdit();
+      loadTransfers();
+      loadBalances();
+    } catch (e) {
+      console.error(e);
+      toast.error('Erreur lors de la modification de la date');
     }
   };
 
@@ -583,7 +611,19 @@ function Transferts() {
                   )}
                   {!loading && filteredEntries.map(e => (
                     <TableRow key={e.id} hover>
-                      <TableCell>{fmtDateTime(e.created_at)}</TableCell>
+                      <TableCell>
+                        {editingId === e.id ? (
+                          <TextField
+                            type="datetime-local"
+                            value={editDate}
+                            onChange={e2 => setEditDate(e2.target.value)}
+                            size="small"
+                            InputProps={{ sx: { fontSize: '0.875rem', minWidth: '180px' } }}
+                          />
+                        ) : (
+                          fmtDateTime(e.created_at)
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Chip size="small" color={e.type === 'Revenu' ? 'success' : 'error'} label={e.type} />
                       </TableCell>
@@ -591,14 +631,30 @@ function Transferts() {
                       <TableCell>{e.description || '-'}</TableCell>
                       <TableCell align="right">{Number(e.montant).toFixed(2)} DT</TableCell>
                       <TableCell align="center">
-                        <IconButton 
-                          size="small" 
-                          color="error" 
-                          onClick={() => handleDeleteClick(e.id, e.description || '')}
-                          title="Supprimer ce transfert"
-                        >
-                          <Delete fontSize="small" />
-                        </IconButton>
+                        {editingId === e.id ? (
+                          <Stack direction="row" spacing={1} justifyContent="center">
+                            <IconButton size="small" color="success" onClick={saveEdit} title="Sauvegarder">
+                              <SaveIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={cancelEdit} title="Annuler">
+                              <CancelIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        ) : (
+                          <Stack direction="row" spacing={1} justifyContent="center">
+                            <IconButton size="small" onClick={() => startEdit(e)} title="Modifier la date">
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              size="small" 
+                              color="error" 
+                              onClick={() => handleDeleteClick(e.id, e.description || '')}
+                              title="Supprimer ce transfert"
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
