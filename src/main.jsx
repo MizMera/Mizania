@@ -1,26 +1,11 @@
 // src/main.jsx
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-import ProtectedRoute from './ProtectedRoute.jsx';
-import App from './App.jsx'
-import VuePDV from './VuePDV.jsx';
-import VueReparations from './VueReparations.jsx';
-import DetailFiche from './DetailFiche.jsx';
-import Dashboard from './Dashboard.jsx';
-import CreerFiche from './CreerFiche.jsx';
-import AdminSecurite from './AdminSecurite.jsx';
-import GestionEncaisse from './GestionEncaisse.jsx';
-import GestionDepenses from './GestionDepenses.jsx';
-import Transferts from './Transferts.jsx';
-import Clients from './Clients.jsx';
-import ClientDetail from './ClientDetail.jsx';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import './global.css'
+import App from './App.jsx';
+import './global.css';
 
 const theme = createTheme({
   palette: {
@@ -53,27 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/*" element={<ProtectedRoute />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="" element={<App />} />
-            <Route path="pdv" element={<VuePDV />} />
-            <Route path="reparations" element={<VueReparations />} />
-            <Route path="reparations/nouveau" element={<CreerFiche />} />
-            <Route path="reparations/:id" element={<DetailFiche />} />
-            <Route path="gestion-encaisse" element={<GestionEncaisse />} />
-            <Route path="depenses" element={<GestionDepenses />} />
-            <Route path="transferts" element={<Transferts />} />
-            <Route path="admin" element={<AdminSecurite />} />
-            <Route path="clients">
-              <Route index element={<Clients />} />
-              <Route path=":id" element={<ClientDetail />} />
-            </Route>
-          </Route>
-        </Routes>
-        <ToastContainer position="bottom-right" autoClose={3500} hideProgressBar theme="dark" />
-      </BrowserRouter>
+      <App />
     </ThemeProvider>
   </React.StrictMode>,
-)
+);

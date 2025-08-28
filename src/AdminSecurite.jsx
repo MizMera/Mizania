@@ -1,10 +1,8 @@
 // src/AdminSecurite.jsx
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Typography, Box, CircularProgress, Paper, Divider, Card, Alert, Grid } from '@mui/material';
+import { Typography, Box, CircularProgress, Paper, Card, Alert, Grid } from '@mui/material';
 
-// Nous allons créer ces composants juste après
-import GestionInvitations from './GestionInvitations';
 import GestionRoles from './GestionRoles';
 import StatutUtilisateurActuel from './StatutUtilisateurActuel';
 
@@ -71,20 +69,12 @@ function AdminSecurite() {
               Panneau d'Administration
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12}>
                 <Paper sx={{ p: { xs: 2, sm: 3 }, bgcolor: 'background.default', height: '100%' }}>
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Gestion des Invitations
+                    Gestion des Utilisateurs et des Rôles
                   </Typography>
-                  <GestionInvitations embedded />
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: { xs: 2, sm: 3 }, bgcolor: 'background.default', height: '100%' }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                    Gestion des Rôles
-                  </Typography>
-                  <GestionRoles embedded />
+                  <GestionRoles />
                 </Paper>
               </Grid>
             </Grid>

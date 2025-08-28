@@ -1,120 +1,51 @@
 // src/Login.jsx
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { supabase } from './supabaseClient';
-import { TextField, Button, Box, Typography, Paper } from '@mui/material';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { TextField, Button, Box, Typography, Card, CardContent, Link } from '@mui/material';
 import { toast } from 'react-toastify';
 
 function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
-
-  // Configurable allowed domains (comma-separated), optional
-  const allowedDomains = useMemo(() => {
-    const raw = import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS || '';
-    return raw
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-  }, []);
-
-  // Explicit allowed emails (comma-separated), optional
-  const allowedEmails = useMemo(() => {
-    const raw = import.meta.env.VITE_ALLOWED_EMAILS || '';
-    return raw
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-  }, []);
-
-  // Redirect URL: prefer explicit site URL in env, fallback to current origin
-  const redirectTo = useMemo(() => {
-    return (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, '');
-  }, []);
-
-  const validateEmail = (val) => {
-    const v = String(val ?? '').trim().toLowerCase();
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!re.test(v)) {
-      return 'Adresse e-mail invalide';
-    }
-    // Domain allowlist (client-side precheck for better UX)
-    if (allowedDomains.length) {
-      const domain = String(v.split('@')[1] || '').toLowerCase();
-      if (!allowedDomains.includes(domain)) {
-        return `Domaine non autorisé. Autorisés: ${allowedDomains.join(', ')}`;
-      }
-    }
-    return '';
-  };
-
-  // Check if email is pre-approved (DB only)
-  const isEmailApproved = async (val) => {
-    const em = String(val || '').trim().toLowerCase();
-    if (!em) return false;
-
-    // Try invitations table (if exists)
-    try {
-      const { data, error } = await supabase
-        .from('invitations')
-        .select('email')
-        .eq('email', em)
-        .limit(1);
-      if (!error && data && data.length > 0) return true;
-    } catch (_) { /* ignore */ }
-
-    // Try user_profiles with email column (if exists)
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('email')
-        .eq('email', em)
-        .limit(1);
-      if (!error && data && data.length > 0) return true;
-    } catch (_) { /* ignore */ }
-
-    return false;
-  };
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    const err = validateEmail(email);
-    setEmailError(err);
-    if (err) {
-      toast.error(err);
+    setLoading(true);
+
+    const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (loginError) {
+      toast.error(loginError.message);
+      setLoading(false);
       return;
     }
 
-    // Enforce pre-approval before sending magic link
-    try {
-      setLoading(true);
-      const approved = await isEmailApproved(email);
-      if (!approved) {
-        toast.error("Adresse non autorisée. Contactez l'administrateur pour être invité.");
-        setLoading(false);
-        return;
-      }
+    if (loginData.user) {
+      // Fetch the full profile to ensure we get the latest data
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*') 
+        .eq('id', loginData.user.id)
+        .single();
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: redirectTo },
-      });
-      if (error) throw error;
-      toast.success('Vérifiez votre e-mail pour le lien de connexion. Pensez à vérifier vos spams.');
-    } catch (error) {
-      const msg = String(error?.message || 'Erreur de connexion');
-      if (/redirect/.test(msg) && /(allow|whitelist)/i.test(msg)) {
-        toast.error(
-          `URL de redirection non autorisée: ${redirectTo}. Ajoutez-la dans Supabase > Authentication > URL Configuration (Site URL ou Additional Redirect URLs).`
-        );
-      } else if (/signups not allowed|disabled/i.test(msg)) {
-        toast.error("Les inscriptions sont désactivées. Demandez une invitation à l'administrateur.");
+      if (profileError && profileError.code !== 'PGRST116') { // Ignore 'exact one row' error if profile is missing
+        toast.error("Erreur de chargement du profil utilisateur.");
+        await supabase.auth.signOut();
+      } else if (!profile || !profile.approved) {
+        toast.warn("Votre compte n'a pas encore été approuvé par un administrateur.");
+        await supabase.auth.signOut();
       } else {
-        toast.error(msg);
+        toast.success('Connexion réussie !');
+        navigate('/');
       }
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
@@ -128,8 +59,7 @@ function Login() {
           'radial-gradient(1200px 600px at 100% -10%, rgba(99,102,241,0.18), transparent), radial-gradient(800px 400px at -10% 100%, rgba(14,165,233,0.12), transparent), #0B1220',
       }}
     >
-      <Paper
-        elevation={6}
+      <Card
         sx={{
           width: '100%',
           maxWidth: 440,
@@ -141,63 +71,79 @@ function Login() {
           boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
         }}
       >
-        <Box component="form" onSubmit={handleLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <Box sx={{ textAlign: 'center' }}>
+        <CardContent>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
             <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: 0.2 }}>
               Mizania+
             </Typography>
             <Typography variant="subtitle1" sx={{ color: 'rgba(226,232,240,0.8)' }}>
-              Connexion par lien magique
+              Connexion
             </Typography>
           </Box>
 
-          <TextField
-            label="Votre e-mail"
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (emailError) setEmailError(validateEmail(e.target.value));
-            }}
-            onBlur={() => setEmailError(validateEmail(email))}
-            error={!!emailError}
-            helperText={emailError || "Seules les adresses invitées par l'administrateur recevront un lien."}
-            required
-            fullWidth
-            size="medium"
-            variant="outlined"
-            InputProps={{
-              sx: {
-                bgcolor: 'rgba(148,163,184,0.08)',
-                color: '#E5E7EB',
-                '& fieldset': { borderColor: 'rgba(148,163,184,0.24)' },
-                '&:hover fieldset': { borderColor: 'rgba(148,163,184,0.36)' },
-              },
-            }}
-          />
+          <Box component="form" onSubmit={handleLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Votre e-mail"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              fullWidth
+              variant="outlined"
+              InputLabelProps={{ sx: { color: '#9ca3af' } }}
+              InputProps={{
+                sx: {
+                  bgcolor: 'rgba(148,163,184,0.08)',
+                  color: '#E5E7EB',
+                  '& fieldset': { borderColor: 'rgba(148,163,184,0.24)' },
+                  '&:hover fieldset': { borderColor: 'rgba(148,163,184,0.36)' },
+                },
+              }}
+            />
+            
+            <TextField
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              fullWidth
+              variant="outlined"
+              InputLabelProps={{ sx: { color: '#9ca3af' } }}
+              InputProps={{
+                sx: {
+                  bgcolor: 'rgba(148,163,184,0.08)',
+                  color: '#E5E7EB',
+                  '& fieldset': { borderColor: 'rgba(148,163,184,0.24)' },
+                  '&:hover fieldset': { borderColor: 'rgba(148,163,184,0.36)' },
+                },
+              }}
+            />
 
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading}
-            size="large"
-            sx={{
-              py: 1.2,
-              fontWeight: 700,
-              background: 'linear-gradient(135deg, #6366F1, #0EA5E9)',
-              boxShadow: '0 10px 24px rgba(14,165,233,0.35)',
-            }}
-            fullWidth
-          >
-            {loading ? 'Envoi en cours…' : 'Recevoir le lien magique'}
-          </Button>
-
-          <Box sx={{ textAlign: 'center', color: 'rgba(226,232,240,0.8)', fontSize: 13 }}>
-            <div>Lien valide uniquement sur: {redirectTo}</div>
-            {allowedDomains.length > 0 && <div>Domaines autorisés: {allowedDomains.join(', ')}</div>}
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              size="large"
+              sx={{
+                mt: 1,
+                py: 1.2,
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #6366F1, #0EA5E9)',
+                boxShadow: '0 10px 24px rgba(14,165,233,0.35)',
+              }}
+              fullWidth
+            >
+              {loading ? 'Connexion en cours…' : 'Se connecter'}
+            </Button>
           </Box>
-        </Box>
-      </Paper>
+          <Typography variant="body2" sx={{ textAlign: 'center', mt: 3 }}>
+            <Link component={RouterLink} to="/signup" sx={{ color: 'rgba(226,232,240,0.8)' }}>
+              Pas de compte ? S'inscrire
+            </Link>
+          </Typography>
+        </CardContent>
+      </Card>
     </Box>
   );
 }

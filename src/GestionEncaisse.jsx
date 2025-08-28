@@ -349,79 +349,86 @@ function GestionEncaisse() {
   const openCashRegister = async (amount = SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT, mode = 'add') => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-      
-      const currentBalance = balances?.Caisse || 0;
-      let actualOpeningAmount = amount;
-      let transactionAmount = amount;
-      
-      if (mode === 'set' && currentBalance > 0) {
-        // We want to SET the caisse to exactly 'amount', so we need to adjust
-        transactionAmount = amount - currentBalance;
-        if (transactionAmount < 0) {
-          // Need to remove money (negative transaction)
-          const { error: removeError } = await supabase.from('transactions').insert({
-            type: 'Dépense',
-            source: 'ajustement',
-            montant: Math.abs(transactionAmount),
-            description: `Ajustement caisse - ${format(new Date(), 'dd/MM/yyyy')} - Solde précédent: ${currentBalance} DT`,
+      if (!user) return;
+      // Determine if an opening transaction already exists for the currently selected day
+      const hasOpeningToday = transactions.some(r => isOpeningFund(r));
+
+      const currentBalance = balances?.Caisse || 0; // physical cash currently detected
+      let actualOpeningAmount = amount; // target opening fund for the day
+      let transactionAmount = amount;   // amount to move (will be adjusted below)
+
+      // If user clicked quick/add opening but there is already cash kept from yesterday and no opening recorded today,
+      // treat the requested amount as the TARGET final fund (set mode) to avoid double counting.
+      if (mode === 'add' && !hasOpeningToday && currentBalance > 0) {
+        mode = 'set';
+        transactionAmount = amount - currentBalance; // difference to reach target
+      }
+
+      if (mode === 'set') {
+        // In set mode we adjust to reach the exact target amount (actualOpeningAmount)
+        // transactionAmount can be positive (need to add) or negative (need to remove) or zero (just record opening marker)
+        if (transactionAmount === 0) {
+          // Record zero-movement opening marker (traceability) with cout_total = currentBalance
+          const { error } = await supabase.from('transactions').insert({
+            type: 'Revenu',
+            source: 'ouverture',
+            montant: 0,
+            description: `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond confirmé: ${currentBalance.toFixed(2)} DT (aucun ajustement)`,
             user_id: user.id,
             wallet: 'Caisse',
-            is_internal: true
+            is_internal: true,
+            cout_total: currentBalance
           });
-          if (removeError) throw removeError;
+          if (error) throw error;
+          actualOpeningAmount = currentBalance; // target equals existing
+        } else {
+          const { error } = await supabase.from('transactions').insert({
+            type: transactionAmount >= 0 ? 'Revenu' : 'Dépense',
+            source: 'ouverture',
+            montant: Math.abs(transactionAmount),
+            description: `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond cible: ${amount.toFixed(2)} DT (ajustement: ${transactionAmount > 0 ? '+' : ''}${transactionAmount.toFixed(2)} DT)`,
+            user_id: user.id,
+            wallet: 'Caisse',
+            is_internal: true,
+            cout_total: amount
+          });
+          if (error) throw error;
+          actualOpeningAmount = amount; // final target
         }
-        
-        // Always create an opening transaction to mark the caisse as opened
-        // For "set" mode, this records the adjustment (could be 0), not the final amount
-        const { error } = await supabase.from('transactions').insert({
-          type: transactionAmount >= 0 ? 'Revenu' : 'Dépense',
-          source: 'ouverture',
-          montant: Math.abs(transactionAmount),
-          description: transactionAmount === 0 
-            ? `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond confirmé: ${amount} DT (aucun ajustement nécessaire)`
-            : `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond exact: ${amount} DT (ajustement: ${transactionAmount > 0 ? '+' : ''}${transactionAmount.toFixed(2)} DT)`,
-          user_id: user.id,
-          wallet: 'Caisse',
-          is_internal: true,
-          // Store the final opening amount in a custom field for tracking
-          cout_total: amount // Using cout_total to store the actual opening fund amount
-        });
-        if (error) throw error;
       } else {
-        // Normal mode: ADD the amount
+        // Original add mode (no retained previous fund or explicit add)
         const { error } = await supabase.from('transactions').insert({
           type: 'Revenu',
-          source: 'ouverture',
-          montant: amount,
-          description: `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond de caisse: ${amount} DT`,
-          user_id: user.id,
-          wallet: 'Caisse',
-          is_internal: true,
-          cout_total: currentBalance + amount // Store the final opening fund amount
+            source: 'ouverture',
+            montant: amount,
+            description: `Ouverture caisse - ${format(new Date(), 'dd/MM/yyyy')} - Fond de caisse ajouté: ${amount} DT`,
+            user_id: user.id,
+            wallet: 'Caisse',
+            is_internal: true,
+            cout_total: currentBalance + amount
         });
         if (error) throw error;
-        actualOpeningAmount = currentBalance + amount;
+        actualOpeningAmount = currentBalance + amount; // new balance becomes opening fund baseline
       }
-      
-      setDailyStatus(prev => ({ 
-        ...prev, 
-        isOpened: true, 
+
+      setDailyStatus(prev => ({
+        ...prev,
+        isOpened: true,
         openingFund: { montant: actualOpeningAmount },
-        openingAmount: actualOpeningAmount 
+        openingAmount: actualOpeningAmount
       }));
-      setFondCaisse(actualOpeningAmount.toString()); // Update the Fund display
+      setFondCaisse(actualOpeningAmount.toString());
       setOpeningAmountDialog({ open: false, amount: SMART_CASH_CONFIG.FIXED_OPENING_AMOUNT, mode: 'add' });
-      
+
       if (mode === 'set') {
-        toast.success(`Caisse ajustée à ${amount} DT exactement`);
+        toast.success(`Fond de caisse fixé à ${actualOpeningAmount.toFixed(2)} DT`);
       } else {
-        toast.success(`Caisse ouverte avec ${amount} DT ajoutés`);
+        toast.success(`Caisse ouverte (+${amount.toFixed(2)} DT)`);
       }
       load();
     } catch (error) {
       console.error('Opening error:', error);
-      toast.error('Erreur lors de l\'ouverture de la caisse: ' + (error.message || 'Erreur inconnue'));
+      toast.error("Erreur lors de l'ouverture de la caisse: " + (error.message || 'Erreur inconnue'));
     }
   };
 

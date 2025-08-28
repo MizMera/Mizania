@@ -49,15 +49,14 @@ const menuItems = [
   { text: 'Inventaire', path: '/', Icon: InventoryIcon },
   { text: 'Point de Vente', path: '/pdv', Icon: POSIcon },
   { text: 'Réparations', path: '/reparations', Icon: RepairIcon },
-  { text: 'Gestion Encaisse', path: '/gestion-encaisse', Icon: AccountBalanceWallet },
+  { text: 'Gestion Encaisse', path: '/caisse', Icon: AccountBalanceWallet },
   { text: 'Dépenses', path: '/depenses', Icon: MoneyOff },
   { text: 'Transferts', path: '/transferts', Icon: SwapHoriz },
   { text: 'Clients', path: '/clients', Icon: GroupIcon },
   { text: 'Administration', path: '/admin', Icon: AdminPanelSettings },
 ];
 
-function Layout() {
-  const [user, setUser] = useState(null);
+function Layout({ userProfile }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -74,24 +73,6 @@ function Layout() {
   // Notifications state
   const [notifAnchor, setNotifAnchor] = useState(null);
   const [notifications, setNotifications] = useState([]); // {label, path}
-
-  useEffect(() => {
-    // Vérifier l'utilisateur actuel
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
-
-    // Écouter les changements d'authentification
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     // (Re)load notifications when route changes
@@ -119,7 +100,7 @@ function Layout() {
     { key: 'inventaire', label: 'Ouvrir Inventaire', path: '/' },
     { key: 'pdv', label: 'Ouvrir Point de Vente', path: '/pdv' },
     { key: 'reparations', label: 'Voir Réparations', path: '/reparations' },
-    { key: 'encaisse', label: 'Gestion Encaisse', path: '/gestion-encaisse' },
+    { key: 'encaisse', label: 'Gestion Encaisse', path: '/caisse' },
     { key: 'depenses', label: 'Voir Dépenses', path: '/depenses' },
     { key: 'transferts', label: 'Voir Transferts', path: '/transferts' },
     { key: 'clients', label: 'Voir Clients', path: '/clients' },
@@ -314,7 +295,7 @@ function Layout() {
               color="inherit"
             >
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
-                {user?.email?.charAt(0).toUpperCase()}
+                {userProfile?.email?.charAt(0).toUpperCase()}
               </Avatar>
             </IconButton>
           </Box>
@@ -387,7 +368,7 @@ function Layout() {
           >
             <MenuItem onClick={() => setAnchorEl(null)}>
               <AccountCircle sx={{ mr: 1 }} />
-              {user?.email}
+              {userProfile?.email}
             </MenuItem>
             <MenuItem onClick={handleLogout}>
               <Logout sx={{ mr: 1 }} />
