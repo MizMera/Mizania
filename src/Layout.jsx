@@ -46,7 +46,7 @@ const collapsedWidth = 72; // icon-only width
 // Customize each item: choose icon gradients and colors
 const menuItems = [
   { text: 'Tableau de Bord', path: '/dashboard', Icon: DashboardIcon },
-  { text: 'Inventaire', path: '/', Icon: InventoryIcon },
+  { text: 'Inventaire', path: '/inventaire', Icon: InventoryIcon },
   { text: 'Point de Vente', path: '/pdv', Icon: POSIcon },
   { text: 'Réparations', path: '/reparations', Icon: RepairIcon },
   { text: 'Gestion Encaisse', path: '/caisse', Icon: AccountBalanceWallet },
@@ -97,7 +97,7 @@ function Layout({ userProfile }) {
 
   const commandSuggestions = useMemo(() => ([
     { key: 'dashboard', label: 'Aller au Tableau de Bord', path: '/dashboard' },
-    { key: 'inventaire', label: 'Ouvrir Inventaire', path: '/' },
+    { key: 'inventaire', label: 'Ouvrir Inventaire', path: '/inventaire' },
     { key: 'pdv', label: 'Ouvrir Point de Vente', path: '/pdv' },
     { key: 'reparations', label: 'Voir Réparations', path: '/reparations' },
     { key: 'encaisse', label: 'Gestion Encaisse', path: '/caisse' },
@@ -129,7 +129,7 @@ function Layout({ userProfile }) {
           results.push({
             label: p.nom,
             sublabel: `SKU ${p.sku || '—'} • Stock ${p.quantite_stock ?? '—'}`,
-            path: '/',
+            path: '/inventaire',
           });
         });
       } catch (_) { /* ignore */ }
@@ -184,7 +184,7 @@ function Layout({ userProfile }) {
       ]);
       const low = lowRes.data || [];
       const reps = repRes.data || [];
-      low.forEach(p => items.push({ label: `Stock faible: ${p.nom} (${p.quantite_stock})`, path: '/' }));
+      low.forEach(p => items.push({ label: `Stock faible: ${p.nom} (${p.quantite_stock})`, path: '/inventaire' }));
       if (reps.length) {
         const enCours = reps.filter(r => r.statut === 'En cours').length;
         const recus = reps.filter(r => r.statut === 'Reçu').length;
